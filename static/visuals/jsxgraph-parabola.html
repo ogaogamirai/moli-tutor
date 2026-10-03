@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>JSXGraph — 放物線と接線</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraph.css" />
+  <script src="https://cdn.jsdelivr.net/npm/jsxgraph/distrib/jsxgraphcore.js"></script>
+  <style>
+    body { margin: 0; padding: 8px; background: #0f172a; color: #94a3b8; font-family: system-ui, sans-serif; font-size: 0.85rem; }
+    #box { width: 100%; max-width: 520px; aspect-ratio: 4/3; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <p>スライダー <b>a</b> で y = ax²。点をドラッグすると接線（破線）が変わります。</p>
+  <div id="box" class="jxgbox"></div>
+  <script>
+    const board = JXG.JSXGraph.initBoard("box", {
+      boundingbox: [-4, 8, 4, -2],
+      axis: true,
+      showCopyright: false,
+      pan: { enabled: false },
+    });
+    const a = board.create("slider", [[-3, 7], [1, 7], [-2, 1, 2]], { name: "a", snapWidth: 0.1 });
+    const f = board.create("functiongraph", [function (x) { return a.Value() * x * x; }], {
+      strokeColor: "#38bdf8",
+      strokeWidth: 2,
+    });
+    const p = board.create("glider", [1.2, 1.5, f]);
+    board.create("tangent", [p], { strokeColor: "#f472b6", dash: 2, strokeWidth: 2 });
+  </script>
+</body>
+</html>

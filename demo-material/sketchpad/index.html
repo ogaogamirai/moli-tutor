@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interactive Sketchpad — 読み伴走（Moli-Tutor）</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; line-height: 1.6; max-width: 42rem; margin: 2rem auto; padding: 0 1.25rem; color: #1e293b; }
+    h1 { font-size: 1.35rem; line-height: 1.35; }
+    h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #cbd5e1; padding-bottom: 0.35rem; }
+    .meta { font-size: 0.9rem; color: #64748b; }
+    blockquote { margin: 1rem 0; padding: 0.75rem 1rem; background: #f1f5f9; border-left: 4px solid #3b82f6; }
+    a { color: #2563eb; }
+    mark { background: #fef08a; padding: 0 0.15em; }
+  </style>
+</head>
+<body>
+  <p class="meta">arXiv:2503.16434 · CHI EA 2025 · <a href="https://arxiv.org/html/2503.16434" target="_blank" rel="noopener">全文 HTML（arXiv）</a></p>
+  <h1>Interactive Sketchpad: A Multimodal Tutoring System for Collaborative, Visual Problem-Solving</h1>
+
+  <h2 id="abstract">Abstract</h2>
+  <blockquote>
+    Humans have long relied on visual aids like sketches and diagrams to support reasoning and problem-solving.
+    However, many tutoring systems remain <mark>text-based</mark>, providing feedback only through natural language.
+    This paper introduces <strong>Interactive Sketchpad</strong>, combining language-based explanations with
+    interactive visualizations. Diagrams are generated robustly by <mark>incorporating code execution</mark> into the reasoning process.
+  </blockquote>
+
+  <h2>1 Introduction</h2>
+  <p>
+    Visual tools—auxiliary lines in geometry, graphs in calculus—are essential for complex ideas.
+    Large multimodal models (LMMs) can generate diagrams automatically, but tutoring UIs often still separate
+    chat from drawing. Sketchpad sends <strong>text hints and diagrams together</strong> to a shared sketchpad
+    where students can annotate.
+  </p>
+
+  <h2>2 Related Work</h2>
+  <p>
+    Prior work includes intelligent tutoring systems, hint generation, and multimodal math tutors.
+    Sketchpad emphasizes <strong>collaborative visual problem-solving</strong> on a whiteboard-like surface rather than text-only hints.
+  </p>
+
+  <h2>3 Interactive Sketchpad</h2>
+  <p>
+    The system is built on a pre-trained LMM, fine-tuned for step-by-step guidance in both text and visuals.
+    A key design choice: the model writes <mark>Python (or similar) programs</mark> that render diagrams when executed,
+    improving accuracy over raw image generation from the model alone.
+  </p>
+
+  <h3>3.1 User Interface</h3>
+  <p>
+    Students see problems on the sketchpad, receive incremental hints, and can sketch on top of generated figures.
+    The loop is multimodal: student annotations and follow-up questions inform the next tutor turn.
+  </p>
+
+  <h2>4 Experiments</h2>
+  <p>
+    Domains include geometry, calculus, and trigonometry. User studies report improved
+    <strong>task comprehension</strong>, problem-solving accuracy, and engagement compared to text-only tutoring baselines.
+  </p>
+
+  <h3>4.3 User Studies</h3>
+  <p>
+    Qualitative feedback highlights that synchronized text and visuals reduce the need to imagine figures from prose alone.
+    Quantitative metrics compare Sketchpad against direct solving and hint-only conditions.
+  </p>
+
+  <h2>5 Limitations and Future Works</h2>
+  <p>
+    Scope is largely math problem-solving; generalization to open-ended reading (e.g. papers) is left for future work.
+    Code execution adds latency and safety considerations in deployment.
+  </p>
+
+  <h2>6 Conclusion</h2>
+  <p>
+    Interactive Sketchpad argues that <mark>multimodal tutoring</mark> should treat diagrams as first-class outputs,
+    not optional illustrations—aligned with how humans actually learn from sketches.
+  </p>
+
+  <p class="meta" style="margin-top: 2.5rem;">
+    このページは Moli-Tutor 試読用の同一オリジン要約です。ハイライト連動はここに対して動作します。
+  </p>
+</body>
+</html>

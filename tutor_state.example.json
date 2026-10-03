@@ -1,0 +1,25 @@
+{
+  "status": "active",
+  "tutor": "Jarvis Turing (JT-01)",
+  "material_id": "example-theme",
+  "session_mode": "explain_ja",
+  "page_url": "http://127.0.0.1:8777/material/example/index.html",
+  "url": "http://127.0.0.1:8777/material/example/index.html",
+  "dag": [],
+  "sections": [
+    {
+      "id": "guide",
+      "title": "このセッション",
+      "type": "text",
+      "content": "左: 教材本文。\n右: チャットで解説。\nコピーして tutor_state.json に貼り、パスを書き換えてください。"
+    }
+  ],
+  "board_focus": "guide",
+  "latest_message": { "id": 1, "text": "例 — コックピット起動後にこのファイルを tutor_state.json として保存" },
+  "action_request": {
+    "id": 1,
+    "type": "scroll_to",
+    "target_text": "冒頭",
+    "behavior": "smooth"
+  }
+}

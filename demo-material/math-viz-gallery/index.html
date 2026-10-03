@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数学可視化ギャラリー（Moli テーマ例）</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; line-height: 1.55; max-width: 44rem; margin: 1.5rem auto; padding: 0 1rem; color: #1e293b; }
+    h1 { font-size: 1.25rem; }
+    h2 { font-size: 1rem; margin-top: 1.75rem; border-bottom: 1px solid #e2e8f0; }
+    .tag { display: inline-block; font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 0.1rem 0.45rem; border-radius: 4px; margin-right: 0.35rem; }
+    ul { padding-left: 1.2rem; }
+    mark { background: #fef08a; }
+  </style>
+</head>
+<body>
+  <h1>数学教材の可視化 — テーマ別の置き方（例）</h1>
+  <p>
+    Moli-Tutor には全部を詰め込まず、<mark>テーマごとにライブラリを選ぶ</mark>想定です。
+    右ペインの例は <code>tutor_demo_math_viz.py</code> で切り替えます。
+  </p>
+
+  <h2><span class="tag">式</span> KaTeX（右ペイン）</h2>
+  <p>半環・積分・行列など。いまの Moli 標準。</p>
+
+  <h2><span class="tag">関係</span> Mermaid（右ペイン）</h2>
+  <p>アルゴリズムの流れ、概念の依存。トロピカル経路や ZDD の入口向き。</p>
+
+  <h2><span class="tag">図</span> SVG（右ペイン）</h2>
+  <p>固定の概念図。JT またはコード生成（Sketchpad 型）。</p>
+
+  <h2><span class="tag">操作</span> JSXGraph（iframe）</h2>
+  <p>スライダー・接線・几何。右の「JSXGraph デモ」ブロックで表示（CDN）。</p>
+
+  <h2><span class="tag">教材</span> GeoGebra / Desmos（将来）</h2>
+  <p>本番教材は material_id ごとに URL や visual_html を足すだけ、という拡張方針。</p>
+
+  <p style="margin-top: 2rem; color: #64748b; font-size: 0.9rem;">
+    このページは左ペイン用の目次です。右を見ながら、気になるテーマをチャットで深掘りできます。
+  </p>
+</body>
+</html>

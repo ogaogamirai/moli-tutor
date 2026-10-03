@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Moli-Tutor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; font-family: "Segoe UI", system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    #root { display: flex; height: 100%; width: 100%; }
+    #left, #right { flex: 1 1 50%; min-width: 0; height: 100%; }
+    #left { border-right: 1px solid #334155; background: #fff; }
+    #material { width: 100%; height: 100%; border: 0; }
+    #right {
+      display: flex;
+      flex-direction: column;
+      padding: 16px 20px;
+      gap: 12px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    #right-head { flex: 0 0 auto; }
+    #right h2 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: 0.04em;
+    }
+    .shell-build {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: #64748b;
+      letter-spacing: 0.02em;
+    }
+    #right-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    #board-stack {
+      display: block;
+      width: 100%;
+      padding: 2px 0 24px;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      background: #131c2e;
+    }
+    .board-section {
+      display: block;
+      padding: 20px 22px;
+      background: transparent;
+      border: none;
+      border-top: 1px solid #334155;
+      overflow: visible;
+      max-height: none;
+      scroll-margin: 28px;
+      transition: opacity 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    }
+    .board-section:first-child { border-top: none; }
+    .board-section--math { min-height: 8rem; }
+    .board-section--svg { min-height: 10rem; }
+    .board-section--mermaid { min-height: 22rem; }
+    .board-section--text { min-height: 9rem; }
+    .board-section--iframe { min-height: 22rem; }
+    .board-iframe {
+      width: 100%;
+      min-height: 20rem;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      background: #0f172a;
+    }
+    .board-section--focused {
+      background: rgba(30, 58, 138, 0.22);
+      box-shadow: inset 0 0 0 2px #3b82f6;
+    }
+    .board-section--dimmed { opacity: 0.42; }
+    .board-section-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .board-section-body { font-size: 1rem; overflow: visible; }
+    .board-section-body svg { max-width: 100%; height: auto; display: block; }
+    .board-section-body .mermaid,
+    .board-section-body svg[id^="moli-mmd"] { max-width: 100%; }
+    .board-section--math .board-section-body { font-size: 1.2rem; }
+    .board-section--text .board-section-body { line-height: 1.55; color: #e2e8f0; white-space: pre-wrap; }
+    #status { flex: 0 0 auto; font-size: 0.75rem; color: #64748b; }
+    #tutor-prompt {
+      flex: 0 0 auto;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      padding: 10px 12px;
+      background: #172554;
+      border: 1px solid #1e40af;
+      border-radius: 8px;
+      color: #dbeafe;
+      white-space: pre-wrap;
+    }
+    #tutor-prompt:empty { display: none; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div id="left">
+      <iframe id="material" title="教材ビューア"></iframe>
+    </div>
+    <div id="right">
+      <div id="right-head">
+        <h2>解説ボード <span class="shell-build" id="shell-build">b8</span></h2>
+      </div>
+      <div id="tutor-prompt"></div>
+      <div id="right-scroll">
+        <div id="board-stack" class="board-document" aria-label="解説ボード（一体表示・フォーカスで誘導）"></div>
+      </div>
+      <div id="status">tutor_state.json を監視中…</div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+  <script>
+    let lastActionId = null;
+    let pendingMaterialUrl = null;
+    let queuedAction = null;
+    let retryTimer = null;
+
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || data.source !== "moli-tutor-material") return;
+      if (data.result && data.result.success && data.actionId != null) {
+        lastActionId = data.actionId;
+        if (queuedAction && queuedAction.id === data.actionId) queuedAction = null;
+        if (retryTimer) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }
+    });
+
+    function getMaterialFrame() {
+      return document.getElementById("material");
+    }
+
+    let bridgeInlinePromise = null;
+
+    function injectMaterialBridge(frame) {
+      try {
+        const doc = frame.contentDocument;
+        const win = frame.contentWindow;
+        if (!doc || !win) return Promise.resolve(false);
+        if (win.moliTutor) return Promise.resolve(true);
+        if (!bridgeInlinePromise) {
+          bridgeInlinePromise = fetch(new URL("material_bridge.js?v=3", window.location.href).href)
+            .then((r) => r.text())
+            .then((code) => {
+              const s = doc.createElement("script");
+              s.id = "moli-tutor-bridge-loaded";
+              s.textContent = code;
+              (doc.head || doc.documentElement).appendChild(s);
+              return true;
+            })
+            .catch(() => false);
+        }
+        return bridgeInlinePromise;
+      } catch (_) {
+        return Promise.resolve(false);
+      }
+    }
+
+    function runOnMaterial(action, payload) {
+      const frame = getMaterialFrame();
+      if (!frame || !frame.contentWindow) return false;
+      const win = frame.contentWindow;
+      const api = win.moliTutor;
+      if (!api) return false;
+      let result = { success: false };
+      const type = action.type || "scroll_to";
+      if (type === "scroll_to" && action.target_text) {
+        result = api.highlightAndScroll(action.target_text, {
+          match: action.match,
+          occurrence: action.occurrence,
+          behavior: action.behavior
+        });
+      } else if (type === "scroll_viewport") {
+        result = api.scrollViewport(action);
+      } else if (type === "scroll_hash" && action.hash) {
+        result = api.scrollToHash(action.hash, action);
+      }
+      if (result && result.success && action.id != null) {
+        lastActionId = action.id;
+        if (queuedAction && queuedAction.id === action.id) queuedAction = null;
+        if (retryTimer) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }
+      return result && result.success;
+    }
+
+    function postToMaterial(message) {
+      const frame = getMaterialFrame();
+      if (!frame || !frame.contentWindow) return;
+      frame.contentWindow.postMessage({ source: "moli-tutor-shell", ...message }, "*");
+    }
+
+    function dispatchMaterialAction(action) {
+      if (runOnMaterial(action, actionToPayload(action))) return;
+      postToMaterial(actionToPayload(action));
+    }
+
+    function onMaterialFrameReady() {
+      const frame = getMaterialFrame();
+      if (!frame) return;
+      injectMaterialBridge(frame);
+      if (queuedAction) startActionRetries(queuedAction);
+    }
+
+    function setMaterialUrl(url) {
+      const frame = getMaterialFrame();
+      if (!url || !frame) return;
+      pendingMaterialUrl = url;
+      const cur = frame.getAttribute("src");
+      if (cur !== url) {
+        frame.onload = function () {
+          bridgeInlinePromise = null;
+          onMaterialFrameReady();
+        };
+        frame.setAttribute("src", url);
+      } else if (frame.contentDocument && frame.contentDocument.readyState === "complete") {
+        onMaterialFrameReady();
+      }
+    }
+
+    function scrollRightPane(opts) {
+      const el = getBoardScrollContainer();
+      if (!el) return false;
+      const behavior = (opts && opts.behavior) || "smooth";
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      let top = el.scrollTop;
+      if (opts && opts.y_ratio != null) {
+        top = max * Math.max(0, Math.min(1, Number(opts.y_ratio)));
+      } else if (opts && opts.y_px != null) {
+        top = Math.max(0, Math.min(max, Number(opts.y_px)));
+      } else if (opts && opts.dy != null) {
+        top = Math.max(0, Math.min(max, el.scrollTop + Number(opts.dy)));
+      } else {
+        return false;
+      }
+      el.scrollTo({ top, behavior });
+      return true;
+    }
+
+    function actionToPayload(action) {
+      const type = action.type || "scroll_to";
+      return {
+        type,
+        actionId: action.id,
+        pane: action.pane,
+        target_text: action.target_text,
+        hash: action.hash,
+        match: action.match,
+        occurrence: action.occurrence,
+        y_ratio: action.y_ratio,
+        y_px: action.y_px,
+        dy: action.dy,
+        behavior: action.behavior,
+        section_id: action.section_id,
+        section_index: action.section_index,
+        dim: action.dim
+      };
+    }
+
+    function startActionRetries(action) {
+      if (!action || action.id == null) return;
+      if (retryTimer) clearInterval(retryTimer);
+      const payload = actionToPayload(action);
+      let n = 0;
+      retryTimer = setInterval(() => {
+        if (lastActionId === action.id) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+          return;
+        }
+        injectMaterialBridge(getMaterialFrame()).then(() => dispatchMaterialAction(action));
+        n += 1;
+        if (n >= 24) {
+          clearInterval(retryTimer);
+          retryTimer = null;
+        }
+      }, 350);
+      injectMaterialBridge(getMaterialFrame()).then(() => dispatchMaterialAction(action));
+    }
+
+    function runActionRequest(action) {
+      if (!action || action.id == null) return;
+      if (lastActionId === action.id) return;
+      const type = action.type || "scroll_to";
+      const pane = action.pane || "material";
+      if (type === "focus_board") {
+        focusBoardWithRetry(action);
+        return;
+      }
+      if (type === "scroll_viewport" && pane === "right") {
+        if (scrollRightPane(action)) lastActionId = action.id;
+        return;
+      }
+      if (type === "navigate_to" && action.url) {
+        queuedAction = action.then_scroll_to
+          ? { id: action.id, type: "scroll_to", target_text: action.then_scroll_to }
+          : null;
+        setMaterialUrl(action.url);
+        if (!action.then_scroll_to) lastActionId = action.id;
+        return;
+      }
+      if (
+        (type === "scroll_to" && action.target_text) ||
+        (type === "scroll_hash" && action.hash) ||
+        (type === "scroll_viewport" && pane !== "right")
+      ) {
+        queuedAction = action;
+        const frame = getMaterialFrame();
+        if (frame && frame.getAttribute("src")) {
+          startActionRetries(action);
+        }
+        return;
+      }
+    }
+
+    function setLatestMessage(msg) {
+      const el = document.getElementById("tutor-prompt");
+      if (!el) return;
+      if (!msg) {
+        el.textContent = "";
+        return;
+      }
+      el.textContent = typeof msg === "string" ? msg : (msg.text || "");
+    }
+    let lastSectionsKey = null;
+    let mermaidInit = false;
+    let mermaidSerial = 0;
+    function ensureMermaid() {
+      if (mermaidInit || typeof mermaid === "undefined") return Promise.resolve(!!mermaidInit);
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        securityLevel: "loose",
+        fontFamily: '"Segoe UI", system-ui, sans-serif'
+      });
+      mermaidInit = true;
+      return Promise.resolve(true);
+    }
+
+    function renderMathInto(el, tex) {
+      el.replaceChildren();
+      if (!tex) return;
+      if (window.katex) {
+        try {
+          katex.render(tex, el, { throwOnError: false, displayMode: true });
+          return;
+        } catch (_) {
+          el.textContent = tex;
+          return;
+        }
+      }
+      el.textContent = tex;
+    }
+
+    function renderMermaidInto(el, source) {
+      el.replaceChildren();
+      if (!source || !String(source).trim()) return;
+      const code = String(source).trim();
+      ensureMermaid().then(() => {
+        if (typeof mermaid === "undefined") {
+          el.textContent = code;
+          return;
+        }
+        mermaidSerial += 1;
+        const uid = "moli-mmd-" + mermaidSerial + "-" + Date.now();
+        mermaid
+          .render(uid, code)
+          .then(({ svg }) => {
+            el.innerHTML = svg;
+          })
+          .catch(() => {
+            el.textContent = code;
+          });
+      });
+    }
+
+    function sectionsFromState(state) {
+      if (Array.isArray(state.sections) && state.sections.length) return state.sections;
+      const legacy = [];
+      if (state.svg) legacy.push({ type: "svg", title: "図", content: state.svg });
+      if (state.math) legacy.push({ type: "math", title: "式", content: state.math });
+      if (state.mermaid) legacy.push({ type: "mermaid", title: "関係図", content: state.mermaid });
+      return legacy;
+    }
+
+    function boardSectionEl(sectionRef) {
+      const stack = document.getElementById("board-stack");
+      if (!stack || sectionRef == null) return null;
+      const raw = String(sectionRef);
+      if (/^\d+$/.test(raw)) {
+        const idx = Number(raw);
+        return stack.children[idx] || null;
+      }
+      return stack.querySelector('[data-board-id="' + raw + '"]');
+    }
+
+    function getBoardScrollContainer() {
+      return document.getElementById("right-scroll") || document.getElementById("right");
+    }
+
+    function applyBoardFocus(sectionRef, opts) {
+      const stack = document.getElementById("board-stack");
+      if (!stack || sectionRef == null) return false;
+      const el = boardSectionEl(sectionRef);
+      const dim = !(opts && opts.dim === false);
+      stack.querySelectorAll(".board-section").forEach((node) => {
+        node.classList.remove("board-section--focused");
+        node.classList.toggle("board-section--dimmed", dim);
+      });
+      if (!el) return false;
+      el.classList.add("board-section--focused");
+      el.classList.remove("board-section--dimmed");
+      const behavior = (opts && opts.behavior) || "smooth";
+      const scroller = getBoardScrollContainer();
+      if (scroller && scroller !== document.body) {
+        const pad = 16;
+        const er = el.getBoundingClientRect();
+        const sr = scroller.getBoundingClientRect();
+        const target =
+          scroller.scrollTop +
+          (er.top - sr.top) -
+          Math.max(0, (sr.height - er.height) / 2);
+        scroller.scrollTo({ top: Math.max(0, target - pad), behavior });
+      } else {
+        el.scrollIntoView({ behavior, block: "center" });
+      }
+      return true;
+    }
+
+    function focusBoardWithRetry(action) {
+      if (!action || action.id == null) return;
+      const ref =
+        action.section_id != null
+          ? action.section_id
+          : action.section_index != null
+            ? action.section_index
+            : null;
+      if (ref == null) return;
+      let n = 0;
+      const tick = () => {
+        if (lastActionId === action.id) return;
+        if (applyBoardFocus(ref, action)) {
+          lastActionId = action.id;
+          return;
+        }
+        n += 1;
+        if (n < 24) setTimeout(tick, 200);
+      };
+      tick();
+    }
+
+    function renderBoard(state) {
+      const stack = document.getElementById("board-stack");
+      if (!stack) return;
+      const sections = sectionsFromState(state);
+      const key = JSON.stringify(sections);
+      if (key === lastSectionsKey) return;
+      lastSectionsKey = key;
+      stack.replaceChildren();
+      sections.forEach((sec, idx) => {
+        const type = (sec.type || "text").toLowerCase();
+        const wrap = document.createElement("section");
+        wrap.className = "board-section board-section--" + type;
+        const bid = sec.id != null ? String(sec.id) : "sec-" + idx;
+        wrap.setAttribute("data-board-id", bid);
+        if (sec.title) {
+          const title = document.createElement("div");
+          title.className = "board-section-title";
+          title.textContent = sec.title;
+          wrap.appendChild(title);
+        }
+        const body = document.createElement("div");
+        body.className = "board-section-body";
+        wrap.appendChild(body);
+        stack.appendChild(wrap);
+        const content = sec.content != null ? sec.content : "";
+        if (type === "svg") body.innerHTML = content;
+        else if (type === "math") renderMathInto(body, content);
+        else if (type === "mermaid") renderMermaidInto(body, content);
+        else if (type === "iframe" || type === "visual_html") {
+          const src = String(content).trim();
+          const frame = document.createElement("iframe");
+          frame.className = "board-iframe";
+          frame.setAttribute("title", sec.title || "visual");
+          frame.setAttribute("loading", "lazy");
+          frame.src = src.startsWith("http") ? src : new URL(src.replace(/^\//, ""), window.location.origin + "/").href;
+          body.appendChild(frame);
+        } else body.textContent = String(content);
+      });
+    }
+
+    window.applyState = function (state) {
+      if (!state || typeof state !== "object") return;
+      const pageUrl = state.page_url || state.url;
+      if (pageUrl) setMaterialUrl(pageUrl);
+      renderBoard(state);
+      if (state.latest_message) setLatestMessage(state.latest_message);
+      if (state.board_focus != null && (!state.action_request || state.action_request.type !== "focus_board")) {
+        applyBoardFocus(state.board_focus, { dim: state.board_focus_dim !== false, behavior: "auto" });
+      }
+      if (state.action_request) runActionRequest(state.action_request);
+      const st = document.getElementById("status");
+      if (st) {
+        const dag = state.dag ? " · DAG " + state.dag.length + " nodes" : "";
+        st.textContent = "同期: " + new Date().toLocaleTimeString() + dag;
+      }
+    };
+  </script>
+</body>
+</html>
