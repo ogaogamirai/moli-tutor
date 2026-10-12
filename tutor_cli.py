@@ -78,7 +78,7 @@ def cmd_headings(args: argparse.Namespace) -> int:
     for line in text.splitlines():
         m = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
         if m:
-            headings.append({"level": len(m.group(1)), "text": m.group(2).strip()})
+            headings.append({"index": len(headings), "level": len(m.group(1)), "text": m.group(2).strip()})
     import json as _json
 
     sys.stdout.write(_json.dumps({"url": url, "headings": headings[: args.limit]}, ensure_ascii=False, indent=2))
@@ -157,7 +157,7 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         for line in text.splitlines():
             m = re.match(r"^(#{1,6})\s+(.+)$", line.strip())
             if m:
-                headings.append({"level": len(m.group(1)), "text": m.group(2).strip()})
+                headings.append({"index": len(headings), "level": len(m.group(1)), "text": m.group(2).strip()})
         (out / "headings.json").write_text(
             json.dumps({"source": source, "headings": headings[: args.limit]}, ensure_ascii=False, indent=2),
             encoding="utf-8",

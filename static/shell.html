@@ -265,7 +265,7 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b12</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b13</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -346,11 +346,12 @@
       if (!api) return false;
       let result = { success: false };
       const type = action.type || "scroll_to";
-      if (type === "scroll_to" && action.target_text) {
+      if (type === "scroll_to" && (action.target_text || action.heading_index != null)) {
         result = api.highlightAndScroll(action.target_text, {
           match: action.match,
           occurrence: action.occurrence,
-          behavior: action.behavior
+          behavior: action.behavior,
+          heading_index: action.heading_index
         });
       } else if (type === "scroll_viewport") {
         result = api.scrollViewport(action);
@@ -454,6 +455,7 @@
         pane: action.pane,
         target_text: action.target_text,
         hash: action.hash,
+        heading_index: action.heading_index,
         match: action.match,
         occurrence: action.occurrence,
         y_ratio: action.y_ratio,
@@ -511,7 +513,7 @@
         return;
       }
       if (
-        (type === "scroll_to" && action.target_text) ||
+        (type === "scroll_to" && (action.target_text || action.heading_index != null)) ||
         (type === "scroll_hash" && action.hash) ||
         (type === "scroll_viewport" && pane !== "right")
       ) {
@@ -734,15 +736,27 @@
       if (prog) prog.textContent = done + "/" + nodes.length + " 完了";
     }
 
+    function dagNodeToAction(node) {
+      if (!node) return null;
+      const action = { id: Date.now(), type: "scroll_to", behavior: "smooth" };
+      if (node.heading_index != null) {
+        action.heading_index = node.heading_index;
+        action.match = "heading";
+      } else if (node.target_text) {
+        action.target_text = node.target_text;
+        action.match = node.match || "first";
+      } else if (node.heading) {
+        action.target_text = node.heading;
+        action.match = "heading";
+      } else {
+        return null;
+      }
+      return action;
+    }
+
     function jumpToDagNode(node) {
-      if (!node || !node.target_text) return;
-      const action = {
-        id: Date.now(),
-        type: "scroll_to",
-        target_text: node.target_text,
-        match: node.match || "first",
-        behavior: "smooth"
-      };
+      const action = dagNodeToAction(node);
+      if (!action) return;
       queuedAction = action;
       const frame = getMaterialFrame();
       if (frame && frame.getAttribute("src")) startActionRetries(action);

@@ -96,17 +96,32 @@ AIチャット画面と横並びで表示する際、視認性を高めるため
 
 ### 学習マップ（DAG）
 
-`dag` を入れると、ボード上部に **学習マップ**（学ぶ順番と現在地）が出ます。ノードをクリックすると、教材の `target_text` へスクロール＆ハイライトします。
+`dag` を入れると、ボード上部に **学習マップ**（学ぶ順番と現在地）が出ます。ノードをクリックすると、教材の該当箇所へスクロール＆ハイライトします。
 
 ```json
 "dag": [
-  { "id": "KC_01", "name": "1. 半環", "type": "concept", "status": "active", "target_text": "半環" }
+  { "id": "KC_01", "name": "1. 半環", "type": "concept", "status": "active", "heading_index": 5 }
 ]
 ```
 
 - `type`: `prerequisite`（前提） | `concept`（概念）
 - `status`: `pending`（⚪） | `active`（🎯） | `completed`（✅）
 - 進捗は自動表示（`n/m 完了`）
+
+**アンカー（教材のどこへ飛ぶか）** — 次のいずれか:
+
+| 指定 | 挙動 |
+|------|------|
+| `heading_index` | 教材の見出し（h1–h6）の **N番目（0始まり）** へ厳密にジャンプ。最も安定 |
+| `heading` | 見出しテキストで探す（見出しのみ対象） |
+| `target_text` | まず見出しを探し、無ければ本文テキスト。空白は正規化して照合 |
+
+`heading_index` は `tutor_cli.py headings`（`ingest` も）が **index 付き** で出力します。
+
+```bat
+python -X utf8 tutor_cli.py headings "G:\path\to\textbook.html"
+```
+
 
 ### ボードの開閉
 

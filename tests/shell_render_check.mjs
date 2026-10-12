@@ -68,7 +68,7 @@ let api;
 try {
   const fn = new Function(
     "window", "document", "localStorage", "setInterval",
-    code + "\n;return { renderDagMap, jumpToDagNode, setLayout };"
+    code + "\n;return { renderDagMap, jumpToDagNode, dagNodeToAction, setLayout };"
   );
   api = fn(window, document, localStorage, () => 0);
 } catch (e) {
@@ -100,5 +100,22 @@ assert("second node is active", list && list.children[1].className.includes("act
 
 api.renderDagMap([]);
 assert("empty dag hides the map", registry.get("dag-map").hidden === true);
+
+const a1 = api.dagNodeToAction({ id: "x", name: "n", heading_index: 5 });
+assert(
+  "dagNodeToAction: heading_index -> match heading",
+  !!a1 && a1.heading_index === 5 && a1.match === "heading"
+);
+const a2 = api.dagNodeToAction({ target_text: "半環" });
+assert(
+  "dagNodeToAction: target_text -> match first",
+  !!a2 && a2.target_text === "半環" && a2.match === "first"
+);
+const a3 = api.dagNodeToAction({ heading: "第2章" });
+assert(
+  "dagNodeToAction: heading -> match heading",
+  !!a3 && a3.target_text === "第2章" && a3.match === "heading"
+);
+assert("dagNodeToAction: no anchor -> null", api.dagNodeToAction({ name: "no anchor" }) === null);
 
 process.exit(ok ? 0 : 1);

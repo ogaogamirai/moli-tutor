@@ -4,6 +4,14 @@
 
   const HL_CLASS = "ai-tutor-highlight";
 
+  function normalizeText(s) {
+    return String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+  }
+
+  function collectHeadings() {
+    return Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']"));
+  }
+
   function applyHighlightEl(el, heading) {
     el.classList.add(HL_CLASS);
     el.style.backgroundColor = "#fde047";
@@ -77,10 +85,12 @@
   }
 
   function highlightAllHeadings(targetText) {
+    const needle = normalizeText(targetText);
+    if (!needle) return [];
     const hits = [];
-    document.querySelectorAll("h1, h2, h3, h4, h5, h6, [role='heading']").forEach((h) => {
-      const text = (h.innerText || h.textContent || "").trim();
-      if (!text || !text.includes(targetText)) return;
+    collectHeadings().forEach((h) => {
+      const text = normalizeText(h.innerText || h.textContent || "");
+      if (!text || !text.includes(needle)) return;
       if (h.classList.contains(HL_CLASS)) return;
       applyHighlightEl(h, true);
       hits.push(h);
@@ -88,7 +98,20 @@
     return hits;
   }
 
+  function scrollToHeadingIndex(index, options) {
+    const headings = collectHeadings();
+    const el = headings[index];
+    if (!el) return { success: false, reason: "heading_index_oob", count: headings.length };
+    clearAllHighlights();
+    applyHighlightEl(el, true);
+    el.scrollIntoView({ behavior: behaviorOf(options), block: "start" });
+    return { success: true, method: "heading_index", index, count: headings.length };
+  }
+
   function highlightAndScroll(targetText, options) {
+    if (options && options.heading_index != null) {
+      return scrollToHeadingIndex(Number(options.heading_index), options);
+    }
     const match = (options && options.match) || "first";
     const occurrence = options && options.occurrence != null ? options.occurrence : 0;
     if (!targetText) return { success: false, reason: "empty" };
@@ -111,6 +134,14 @@
       const focus = focusList[occurrence] || firstEl || focusList[0];
       if (focus) focus.scrollIntoView({ behavior: behaviorOf(options), block: "center" });
       return { success: true, method: "all", count: total };
+    }
+
+    if (match === "heading") {
+      const headingHits = highlightAllHeadings(targetText);
+      if (!headingHits.length) return { success: false, reason: "heading_not_found", count: 0 };
+      const focus = headingHits[occurrence] || headingHits[0];
+      focus.scrollIntoView({ behavior: behaviorOf(options), block: "center" });
+      return { success: true, method: "heading", count: headingHits.length };
     }
 
     const headings = highlightAllHeadings(targetText);
@@ -180,6 +211,8 @@
     highlightAndScroll,
     scrollViewport,
     scrollToHash,
+    scrollToHeadingIndex,
+    collectHeadings,
     clearAllHighlights
   };
   window.moliTutor = api;
@@ -189,11 +222,12 @@
     if (!data || data.source !== "moli-tutor-shell") return;
     let result = { success: false };
 
-    if (data.type === "scroll_to" && data.target_text) {
+    if (data.type === "scroll_to" && (data.target_text || data.heading_index != null)) {
       result = highlightAndScroll(data.target_text, {
         match: data.match,
         occurrence: data.occurrence,
-        behavior: data.behavior
+        behavior: data.behavior,
+        heading_index: data.heading_index
       });
     } else if (data.type === "scroll_viewport") {
       result = scrollViewport(data);

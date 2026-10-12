@@ -115,7 +115,9 @@ def test_shell_hooks() -> None:
         'id="material-error"',
         "function renderDagMap",
         "function jumpToDagNode",
+        "function dagNodeToAction",
         "function checkMaterialError",
+        "heading_index",
         "board_visible",
         'setLayout(savedLayout || "left-only")',
         'setLayout("split");',
@@ -139,6 +141,22 @@ def test_shell_render() -> None:
     check("shell: DAG map renders from state.dag (node)", proc.returncode == 0)
 
 
+def test_bridge_anchor() -> None:
+    """Heading anchoring (by index / normalized text). Skips if node is absent."""
+    node = shutil.which("node")
+    if not node:
+        print("SKIP bridge: heading anchor (node not found)")
+        return
+    proc = subprocess.run(
+        [node, str(ROOT / "tests" / "bridge_anchor_check.mjs")],
+        capture_output=True,
+        text=True,
+    )
+    for line in proc.stdout.splitlines():
+        print("  " + line)
+    check("bridge: heading anchors by index and normalized text (node)", proc.returncode == 0)
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -152,6 +170,7 @@ def main() -> int:
     test_http_nul_path()
     test_shell_hooks()
     test_shell_render()
+    test_bridge_anchor()
     test_example_state()
     print()
     if FAILURES:
