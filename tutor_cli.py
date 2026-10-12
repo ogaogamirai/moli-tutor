@@ -306,15 +306,16 @@ def _summarize(body: str, max_chars: int, max_sentences: int) -> str:
     body = body.strip()
     if not body:
         return ""
-    sentences = [s.strip() for s in re.split(r"(?<=[。．！？!?])|(?<=\.)\s+", body) if s.strip()]
-    if not sentences:
+    # 文境界で分割するが、区切り後の空白は保持する（英語の略語 e.g. 等でも崩れない）
+    pieces = [p for p in re.split(r"(?<=[。．！？!?])|(?<=\.)(?=\s)", body) if p]
+    if not pieces:
         return body[:max_chars]
-    out = sentences[0]
+    out = pieces[0]
     count = 1
-    for s in sentences[1:]:
-        if count >= max_sentences or len(out) + len(s) > max_chars:
+    for p in pieces[1:]:
+        if count >= max_sentences or len(out) + len(p) > max_chars:
             break
-        out += s
+        out += p
         count += 1
     if len(out) > max_chars:
         out = out[:max_chars].rstrip() + "…"

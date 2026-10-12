@@ -240,6 +240,15 @@ def test_dag_cli() -> None:
         check("dag: outline written", "# 教材アウトライン" in txt and "[1] はじめに" in txt)
 
 
+def test_summarize() -> None:
+    s = tutor_cli._summarize
+    check("summarize: english keeps sentence space", s("First point. Second point.", 160, 2) == "First point. Second point.")
+    check("summarize: english abbreviation intact", s("See e.g. papers for details.", 160, 2) == "See e.g. papers for details.")
+    check("summarize: japanese no added space", s("これは一つ目。次は二つ目。", 160, 2) == "これは一つ目。次は二つ目。")
+    check("summarize: max_chars truncates with ellipsis", s("A" * 50 + ". " + "B" * 50, 20, 2).endswith("…"))
+    check("summarize: empty -> empty", s("   ", 160, 2) == "")
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -258,6 +267,7 @@ def main() -> int:
     test_act_cli()
     test_heading_parser()
     test_dag_cli()
+    test_summarize()
     test_example_state()
     print()
     if FAILURES:
