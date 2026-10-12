@@ -127,6 +127,17 @@ python -X utf8 tutor_cli.py headings "G:\path\to\textbook.html"
 
 エージェントは `tutor_state.json` を手書きせず、`act` で1操作ずつ追記できます（`id` は自動で +1）。
 
+**どのシェルからでも（推奨）:**
+
+```bat
+act.bat --scroll-to "半環"
+act.bat --heading-index 26
+act.bat --clear-highlight
+```
+
+> `act.bat` は内部でリポジトリへ移動し、`tutor_state.json` を対象にします。
+> 直接叩く場合のディレクトリ移動は **cmd.exe: `cd /d G:\...\moli-tutor`** ／ **PowerShell: `cd "G:\...\moli-tutor"`**（PowerShell では `/d` は使えません）。
+
 ```bat
 python -X utf8 tutor_cli.py act --scroll-to "半環"
 python -X utf8 tutor_cli.py act --heading "第2章" --behavior smooth
