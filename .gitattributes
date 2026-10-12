@@ -1,0 +1,7 @@
+# Windows スクリプトは CRLF でチェックアウトする（cmd.exe / cscript は LF の .bat を誤パースする）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.vbs text eol=crlf
+
+# シェルスクリプトは LF
+*.sh text eol=lf
