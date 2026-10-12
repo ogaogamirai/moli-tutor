@@ -265,7 +265,7 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b15</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b16</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -736,7 +736,7 @@
         const label = document.createElement("span");
         label.className = "dag-node-label";
         label.textContent = node.name || node.id || "node " + idx;
-        label.title = node.name || "";
+        label.title = node.summary ? (node.name || "") + "\n\n" + node.summary : (node.name || "");
         const typeEl = document.createElement("span");
         typeEl.className = "dag-node-type";
         typeEl.textContent = node.type === "prerequisite" ? "前提" : "概念";

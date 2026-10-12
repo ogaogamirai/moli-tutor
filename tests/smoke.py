@@ -227,9 +227,17 @@ def test_dag_cli() -> None:
     check("dag: default keeps 5 (skips h1/目次/h4)", idx == [1, 3, 4, 5, 7])
     check("dag: はじめに -> prerequisite", default["dag"][0]["type"] == "prerequisite")
     check("dag: heading text carried for anchor", default["dag"][0]["heading"] == "はじめに")
+    check("dag: node carries summary from section body", default["dag"][0].get("summary", "").startswith("導入の本文"))
+    check("dag: node carries chars", default["dag"][0].get("chars") == 6)
 
     full = run("--include-h1", "--no-skip", "--max-level", "4")
     check("dag: include-h1/no-skip/max4 -> 8", full["count"] == 8)
+
+    with tempfile.TemporaryDirectory() as d:
+        outline = Path(d) / "outline.md"
+        run("--outline", str(outline))
+        txt = outline.read_text(encoding="utf-8")
+        check("dag: outline written", "# 教材アウトライン" in txt and "[1] はじめに" in txt)
 
 
 def test_example_state() -> None:

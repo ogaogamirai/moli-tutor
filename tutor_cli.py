@@ -188,16 +188,20 @@ DAG_SKIP_DEFAULT = r"^(目次|内容|contents|table of contents|索引|index|参
 DAG_PREREQ_DEFAULT = r"(前提|基礎|はじめに|概要|導入|introduction|prerequisite|background|overview)"
 
 
-class _HeadingParser(HTMLParser):
-    """見出し（h1-h6 と role='heading'）を DOM 順に抽出する。
+_SKIP_TAGS = {"script", "style", "noscript", "template"}
 
-    material_bridge.js の collectHeadings() と同じ集合・同じ順序になるよう作る
+
+class _DocParser(HTMLParser):
+    """見出し（h1-h6 と role='heading'）と本文テキストを DOM 順に抽出する。
+
+    見出しの集合・順序は material_bridge.js の collectHeadings() と一致させる
     （querySelectorAll('h1,...,h6,[role=heading]') は文書順で重複なし）。
+    ("h", {...}) / ("t", text) のイベント列を返し、後段で節ごとの本文に組み立てる。
     """
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.headings: list[dict] = []
+        self.events: list[tuple[str, object]] = []
         self._cap: dict | None = None
         self._depth = 0
         self._stack: list[str] = []
@@ -214,6 +218,9 @@ class _HeadingParser(HTMLParser):
                 return 2
         return None
 
+    def _in_skip(self) -> bool:
+        return any(t in _SKIP_TAGS for t in self._stack)
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         level = self._level_of(tag, attrs)
         if level is not None:
@@ -229,6 +236,8 @@ class _HeadingParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._cap is not None:
             self._cap["parts"].append(data)
+        elif data.strip() and not self._in_skip():
+            self.events.append(("t", data))
 
     def handle_endtag(self, tag: str) -> None:
         if (
@@ -250,14 +259,66 @@ class _HeadingParser(HTMLParser):
         if cap is None:
             return
         text = re.sub(r"\s+", " ", "".join(cap["parts"])).strip()
-        self.headings.append({"level": cap["level"], "text": text, "id": cap["id"]})
+        self.events.append(("h", {"level": cap["level"], "text": text, "id": cap["id"]}))
+
+
+def _extract_doc(text: str) -> list[tuple[str, object]]:
+    parser = _DocParser()
+    parser.feed(text)
+    parser.close()
+    return parser.events
+
+
+def _headings_and_sections(events: list[tuple[str, object]]) -> tuple[list[dict], list[str]]:
+    """各見出しの本文を組み立てる。
+
+    body は「その見出しの直後から、同レベル以上（level <= 自身）の次の見出しまで」の
+    テキスト。章見出しなら節の本文も含むので、要約を章単位で作れる。
+    """
+    headings: list[dict] = []
+    bodies: list[str] = []
+    for i, (kind, val) in enumerate(events):
+        if kind != "h":
+            continue
+        h = val  # type: ignore[assignment]
+        level = h["level"]
+        parts: list[str] = []
+        j = i + 1
+        while j < len(events):
+            k, v = events[j]
+            if k == "h":
+                if v["level"] <= level:
+                    break
+                j += 1
+                continue
+            parts.append(str(v))
+            j += 1
+        headings.append(h)
+        bodies.append(re.sub(r"\s+", " ", " ".join(parts)).strip())
+    return headings, bodies
 
 
 def _extract_headings_from_html(text: str) -> list[dict]:
-    parser = _HeadingParser()
-    parser.feed(text)
-    parser.close()
-    return parser.headings
+    return _headings_and_sections(_extract_doc(text))[0]
+
+
+def _summarize(body: str, max_chars: int, max_sentences: int) -> str:
+    body = body.strip()
+    if not body:
+        return ""
+    sentences = [s.strip() for s in re.split(r"(?<=[。．！？!?])|(?<=\.)\s+", body) if s.strip()]
+    if not sentences:
+        return body[:max_chars]
+    out = sentences[0]
+    count = 1
+    for s in sentences[1:]:
+        if count >= max_sentences or len(out) + len(s) > max_chars:
+            break
+        out += s
+        count += 1
+    if len(out) > max_chars:
+        out = out[:max_chars].rstrip() + "…"
+    return out
 
 
 def _decode_bytes(data: bytes) -> str:
@@ -281,7 +342,7 @@ def _load_material(target: str) -> tuple[str, str]:
     raise SystemExit(f"パスまたは URL が見つかりません: {target}")
 
 
-def _headings_to_dag(headings: list[dict], args: argparse.Namespace) -> list[dict]:
+def _headings_to_dag(headings: list[dict], bodies: list[str], args: argparse.Namespace) -> list[dict]:
     skip_re = None if args.no_skip else re.compile(args.skip_re or DAG_SKIP_DEFAULT, re.I)
     prereq_re = re.compile(args.prereq_re or DAG_PREREQ_DEFAULT, re.I)
     include_re = re.compile(args.include_re, re.I) if args.include_re else None
@@ -303,27 +364,42 @@ def _headings_to_dag(headings: list[dict], args: argparse.Namespace) -> list[dic
             continue
         if exclude_re and exclude_re.search(text):
             continue
-        nodes.append(
-            {
-                "id": f"H{index}",
-                "name": text,
-                "type": "prerequisite" if prereq_re.search(text) else "concept",
-                "status": "pending",
-                "heading_index": index,
-                "heading": text,
-                "level": level,
-            }
-        )
+        node = {
+            "id": f"H{index}",
+            "name": text,
+            "type": "prerequisite" if prereq_re.search(text) else "concept",
+            "status": "pending",
+            "heading_index": index,
+            "heading": text,
+            "level": level,
+        }
+        if args.summary:
+            body = bodies[index] if index < len(bodies) else ""
+            summary = _summarize(body, args.summary_chars, args.summary_sentences)
+            if summary:
+                node["summary"] = summary
+            node["chars"] = len(body)
+        nodes.append(node)
         if args.limit and len(nodes) >= args.limit:
             break
     return nodes
 
 
+def _render_outline(source: str, nodes: list[dict]) -> str:
+    lines = [f"# 教材アウトライン: {source}", ""]
+    for n in nodes:
+        indent = "  " * max(0, int(n.get("level", 2)) - 2)
+        lines.append(f"{indent}- [{n['heading_index']}] {n['name']}")
+        if n.get("summary"):
+            lines.append(f"{indent}  {n['summary']}")
+    return "\n".join(lines)
+
+
 def cmd_dag(args: argparse.Namespace) -> int:
     """教材の見出しから DAG 雛形を生成する（意味づけは AI が直す）。"""
     source, html_text = _load_material(args.target)
-    headings = _extract_headings_from_html(html_text)
-    nodes = _headings_to_dag(headings, args)
+    headings, bodies = _headings_and_sections(_extract_doc(html_text))
+    nodes = _headings_to_dag(headings, bodies, args)
 
     result: dict = {
         "source": source,
@@ -344,6 +420,10 @@ def cmd_dag(args: argparse.Namespace) -> int:
         op = Path(args.out).expanduser()
         op.write_text(json.dumps(nodes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         result["out"] = str(op)
+    if args.outline:
+        op = Path(args.outline).expanduser()
+        op.write_text(_render_outline(source, nodes) + "\n", encoding="utf-8")
+        result["outline"] = str(op)
 
     sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
     sys.stdout.write("\n")
@@ -502,7 +582,11 @@ def main() -> int:
     p_dag.add_argument("--include-re", dest="include_re", default=None, help="一致する見出しだけ含める")
     p_dag.add_argument("--exclude-re", dest="exclude_re", default=None, help="一致する見出しを除外")
     p_dag.add_argument("--limit", type=int, default=0, help="ノード数の上限（0=無制限）")
+    p_dag.add_argument("--no-summary", dest="summary", action="store_false", help="節の要約を付けない")
+    p_dag.add_argument("--summary-chars", dest="summary_chars", type=int, default=160, help="要約の最大文字数（既定 160）")
+    p_dag.add_argument("--summary-sentences", dest="summary_sentences", type=int, default=2, help="要約に含める文の数（既定 2）")
     p_dag.add_argument("--out", default=None, help="DAG 配列の書き出し先ファイル")
+    p_dag.add_argument("--outline", default=None, help="読みやすいアウトライン(Markdown)の書き出し先")
     p_dag.add_argument("--state", default=None, help="この tutor_state.json の dag を置き換える")
     p_dag.add_argument("--material-id", dest="material_id", default=None, help="--state と併用で material_id を設定")
     p_dag.set_defaults(func=cmd_dag)

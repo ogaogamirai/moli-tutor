@@ -133,9 +133,14 @@ python -X utf8 tutor_cli.py dag "G:\...\index.html" --max-level 2 --state tutor_
 ```
 
 - 見出しは **`h1`–`h6` と `role="heading"`** を **DOM順**に取得（bridge と同じ集合・順序）→ `heading_index` が一致します
+- 各ノードに **節の要約**（`summary`）と本文長（`chars`）を付与。**章見出しは節の本文も含めて要約** → 教材全文を読まずに**全体像**を掴めます
+- `--outline PATH` で **読みやすいアウトライン（Markdown）** を書き出し（AIの低負荷な全体把握用）
 - `--max-level`（既定 3）／ `--include-h1` ／ `--skip-re` ／ `--no-skip` ／ `--prereq-re` ／ `--include-re` ／ `--exclude-re` ／ `--limit`
+- `--no-summary` ／ `--summary-chars`（既定 160）／ `--summary-sentences`（既定 2）
 - 既定の除外: 目次・内容・索引・参考文献など／ 既定の prerequisite 判定: はじめに・概要・前提・基礎・導入・Introduction…
 - `--state PATH` で `tutor_state.json` の `dag` を置換（`--out` は配列だけ書き出し）
+
+> 要約は**決定的な抽出**（先頭文ベース。LLM不使用）です。足りない所は AI が補います。学習マップでは各ノードにマウスを重ねると要約が見えます。
 
 
 ### AI 操作の CLI（`tutor_cli.py act`）

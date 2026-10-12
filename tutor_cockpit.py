@@ -19,7 +19,7 @@ import html
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "15"
+SHELL_BUILD = "16"
 DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
 D2_EXE = ROOT.parent / "d2" / "d2.exe"
 
