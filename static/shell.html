@@ -21,19 +21,93 @@
       min-height: 0;
       overflow: hidden;
     }
-    #right-head { flex: 0 0 auto; }
-    #right h2 {
-      margin: 0;
-      font-size: 1rem;
-      font-weight: 600;
-      color: #94a3b8;
-      letter-spacing: 0.04em;
+    #root.layout-left-only #left { flex: 1 1 100%; width: 100%; border-right: none; }
+    #root.layout-left-only #right { display: none !important; }
+    #root.layout-right-only #left { display: none !important; }
+    #root.layout-right-only #right { flex: 1 1 100%; width: 100%; }
+
+    .layout-toggle-bar {
+      display: inline-flex;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 2px;
+      gap: 2px;
+      margin-left: auto;
     }
-    .shell-build {
-      font-size: 0.7rem;
+    .layout-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 0.72rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
       font-weight: 500;
-      color: #64748b;
-      letter-spacing: 0.02em;
+      transition: all 0.15s ease;
+    }
+    .layout-btn:hover {
+      background: #334155;
+      color: #f8fafc;
+    }
+    .layout-btn.active {
+      background: #3b82f6;
+      color: #ffffff;
+      font-weight: 600;
+    }
+    #left-float-bar {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 1000;
+      display: none;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(4px);
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 3px 6px;
+    }
+    #root.layout-left-only #left-float-bar {
+      display: block;
+    }
+
+    .board-section-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .d2-actions {
+      display: inline-flex;
+      gap: 6px;
+      margin-left: auto;
+    }
+    .d2-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .d2-btn:hover {
+      background: #3b82f6;
+      color: #ffffff;
+      border-color: #3b82f6;
+    }
+    .board-section--d2 { min-height: 12rem; }
+    .board-section--d2 .board-section-body svg {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+    #right-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex: 0 0 auto;
     }
     #right-scroll {
       flex: 1 1 auto;
@@ -110,11 +184,19 @@
 <body>
   <div id="root">
     <div id="left">
+      <div id="left-float-bar">
+        <button class="layout-btn" onclick="setLayout('split')">解説を開く ⮞</button>
+      </div>
       <iframe id="material" title="教材ビューア"></iframe>
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b8</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b10</span></h2>
+        <div class="layout-toggle-bar">
+          <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
+          <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
+          <button class="layout-btn" id="btn-layout-right" onclick="setLayout('right-only')" title="解説のみ全幅 (Alt+3)">解説のみ ▶</button>
+        </div>
       </div>
       <div id="tutor-prompt"></div>
       <div id="right-scroll">
@@ -470,6 +552,39 @@
       tick();
     }
 
+    function setLayout(mode) {
+      const root = document.getElementById("root");
+      if (!root) return;
+      root.classList.remove("layout-left-only", "layout-right-only");
+      document.querySelectorAll(".layout-btn").forEach((b) => b.classList.remove("active"));
+      if (mode === "left-only") {
+        root.classList.add("layout-left-only");
+        const b = document.getElementById("btn-layout-left");
+        if (b) b.classList.add("active");
+      } else if (mode === "right-only") {
+        root.classList.add("layout-right-only");
+        const b = document.getElementById("btn-layout-right");
+        if (b) b.classList.add("active");
+      } else {
+        const b = document.getElementById("btn-layout-split");
+        if (b) b.classList.add("active");
+      }
+      try { localStorage.setItem("moli_layout_mode", mode); } catch (_) {}
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === "1") { setLayout("left-only"); e.preventDefault(); }
+        else if (e.key === "2") { setLayout("split"); e.preventDefault(); }
+        else if (e.key === "3") { setLayout("right-only"); e.preventDefault(); }
+      }
+    });
+
+    try {
+      const savedLayout = localStorage.getItem("moli_layout_mode");
+      if (savedLayout) setLayout(savedLayout);
+    } catch (_) {}
+
     function renderBoard(state) {
       const stack = document.getElementById("board-stack");
       if (!stack) return;
@@ -484,18 +599,65 @@
         wrap.className = "board-section board-section--" + type;
         const bid = sec.id != null ? String(sec.id) : "sec-" + idx;
         wrap.setAttribute("data-board-id", bid);
-        if (sec.title) {
-          const title = document.createElement("div");
-          title.className = "board-section-title";
-          title.textContent = sec.title;
-          wrap.appendChild(title);
+
+        if (sec.title || type === "d2") {
+          const header = document.createElement("div");
+          header.className = "board-section-header";
+          if (sec.title) {
+            const title = document.createElement("div");
+            title.className = "board-section-title";
+            title.textContent = sec.title;
+            header.appendChild(title);
+          }
+          if (type === "d2") {
+            const actions = document.createElement("div");
+            actions.className = "d2-actions";
+
+            const btnExportSvg = document.createElement("button");
+            btnExportSvg.className = "d2-btn";
+            btnExportSvg.title = "SVGファイルとしてダウンロード保存";
+            btnExportSvg.textContent = "📥 SVG保存";
+            btnExportSvg.onclick = (e) => {
+              e.stopPropagation();
+              const svgData = sec.content;
+              const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = (sec.id || "diagram") + ".svg";
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            };
+            actions.appendChild(btnExportSvg);
+
+            if (sec.d2_source) {
+              const btnCopyD2 = document.createElement("button");
+              btnCopyD2.className = "d2-btn";
+              btnCopyD2.title = "D2ソースコードをクリップボードにコピー";
+              btnCopyD2.textContent = "📋 D2コピー";
+              btnCopyD2.onclick = (e) => {
+                e.stopPropagation();
+                navigator.clipboard.writeText(sec.d2_source).then(() => {
+                  btnCopyD2.textContent = "✅ コピー完了";
+                  setTimeout(() => { btnCopyD2.textContent = "📋 D2コピー"; }, 2000);
+                });
+              };
+              actions.appendChild(btnCopyD2);
+            }
+
+            header.appendChild(actions);
+          }
+          wrap.appendChild(header);
         }
+
         const body = document.createElement("div");
         body.className = "board-section-body";
         wrap.appendChild(body);
         stack.appendChild(wrap);
         const content = sec.content != null ? sec.content : "";
-        if (type === "svg") body.innerHTML = content;
+        if (type === "d2" || type === "svg") body.innerHTML = content;
         else if (type === "math") renderMathInto(body, content);
         else if (type === "mermaid") renderMermaidInto(body, content);
         else if (type === "iframe" || type === "visual_html") {
@@ -526,6 +688,22 @@
         st.textContent = "同期: " + new Date().toLocaleTimeString() + dag;
       }
     };
+
+    // ブラウザ直接表示用（pywebview外でも状態変更を自動反映）
+    let lastBrowserStateJson = "";
+    setInterval(async () => {
+      try {
+        const res = await fetch("/api/state?t=" + Date.now());
+        if (res.ok) {
+          const text = await res.text();
+          if (text !== lastBrowserStateJson) {
+            lastBrowserStateJson = text;
+            const state = JSON.parse(text);
+            window.applyState(state);
+          }
+        }
+      } catch (_) {}
+    }, 400);
   </script>
 </body>
 </html>

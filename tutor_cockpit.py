@@ -12,16 +12,76 @@ import webview
 
 from tutor_http import serve
 
+import subprocess
+import hashlib
+
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "9"
+SHELL_BUILD = "10"
 DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
+D2_EXE = ROOT.parent / "d2" / "d2.exe"
+
+_D2_CACHE: dict[str, str] = {}
+
+
+def _render_d2_to_svg(d2_text: str) -> str:
+    """Compile D2 text to SVG using Tools/d2/d2.exe in ~0.04s."""
+    if not d2_text or not d2_text.strip():
+        return ""
+    code_hash = hashlib.sha256(d2_text.encode("utf-8")).hexdigest()
+    if code_hash in _D2_CACHE:
+        return _D2_CACHE[code_hash]
+
+    if not D2_EXE.is_file():
+        return f'<div style="color:#ef4444;padding:8px;border:1px solid #dc2626;border-radius:4px;">D2 binary not found: {D2_EXE}</div>'
+
+    try:
+        proc = subprocess.run(
+            [str(D2_EXE), "-", "-"],
+            input=d2_text.encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            timeout=5.0,
+        )
+        if proc.returncode == 0:
+            svg = proc.stdout.decode("utf-8", errors="replace")
+            _D2_CACHE[code_hash] = svg
+            return svg
+        else:
+            err = proc.stderr.decode("utf-8", errors="replace")
+            return f'<div style="color:#ef4444;background:#1e1e2e;padding:12px;border:1px solid #ef4444;border-radius:6px;font-family:monospace;white-space:pre-wrap;">D2 Compile Error:\n{err}</div>'
+    except Exception as e:
+        return f'<div style="color:#ef4444;padding:8px;">D2 Execution Error: {e}</div>'
+
+
+def _preprocess_state(state: dict) -> dict:
+    """Preprocess state to convert D2 code into SVG while preserving d2_source."""
+    processed = json.loads(json.dumps(state))
+
+    if "sections" in processed and isinstance(processed["sections"], list):
+        for sec in processed["sections"]:
+            if isinstance(sec, dict) and sec.get("type") == "d2":
+                raw_d2 = sec.get("content", "")
+                sec["d2_source"] = raw_d2
+                sec["content"] = _render_d2_to_svg(raw_d2)
+
+    if "d2" in processed and isinstance(processed["d2"], str):
+        raw_d2 = processed["d2"]
+        processed["d2_source"] = raw_d2
+        d2_svg = _render_d2_to_svg(raw_d2)
+        processed["d2_svg"] = d2_svg
+        if not processed.get("svg"):
+            processed["svg"] = d2_svg
+
+    return processed
 
 
 def _load_state(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
-    return json.loads(text)
+    raw_state = json.loads(text)
+    return _preprocess_state(raw_state)
 
 
 def _state_watcher(window: webview.Window, state_path: Path, interval: float) -> None:
@@ -64,6 +124,11 @@ def main() -> None:
         default=DEFAULT_MATERIAL,
         help="教材を /material/ 以下で配信（スクロール連動に必須）",
     )
+    parser.add_argument(
+        "--browser",
+        action="store_true",
+        help="pywebview GUI ではなく通常ブラウザで開く",
+    )
     args = parser.parse_args()
     state_path = args.state.resolve()
 
@@ -71,34 +136,54 @@ def main() -> None:
         raise SystemExit(f"shell が見つかりません: {STATIC / 'shell.html'}")
 
     material_dir = args.material_dir.resolve() if args.material_dir and args.material_dir.is_dir() else None
-    serve(STATIC, material_dir, args.host, args.port)
+    serve(STATIC, material_dir, args.host, args.port, state_callback=lambda: _load_state(state_path))
     shell_url = f"http://{args.host}:{args.port}/shell.html?b={SHELL_BUILD}&t={int(time.time())}"
 
-    window = webview.create_window(
-        "Moli-Tutor",
-        url=shell_url,
-        width=1400,
-        height=900,
-        resizable=True,
-    )
-
-    def on_loaded() -> None:
-        time.sleep(1.2)
+    if args.browser:
+        import webbrowser
+        print(f"[moli-tutor] Opening in browser: {shell_url}", flush=True)
+        webbrowser.open(shell_url)
         try:
-            state = _load_state(state_path)
-            payload = json.dumps(state, ensure_ascii=False)
-            window.evaluate_js(f"window.applyState({payload})")
-        except (json.JSONDecodeError, OSError):
-            pass
-        t = threading.Thread(
-            target=_state_watcher,
-            args=(window, state_path, args.poll_ms / 1000.0),
-            daemon=True,
-        )
-        t.start()
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            return
 
-    window.events.loaded += on_loaded
-    webview.start(gui="edgechromium")
+    try:
+        window = webview.create_window(
+            "Moli-Tutor",
+            url=shell_url,
+            width=1400,
+            height=900,
+            resizable=True,
+        )
+
+        def on_loaded() -> None:
+            time.sleep(1.2)
+            try:
+                state = _load_state(state_path)
+                payload = json.dumps(state, ensure_ascii=False)
+                window.evaluate_js(f"window.applyState({payload})")
+            except (json.JSONDecodeError, OSError):
+                pass
+            t = threading.Thread(
+                target=_state_watcher,
+                args=(window, state_path, args.poll_ms / 1000.0),
+                daemon=True,
+            )
+            t.start()
+
+        window.events.loaded += on_loaded
+        webview.start(gui="edgechromium")
+    except Exception as e:
+        import webbrowser
+        print(f"[moli-tutor] GUI launch failed ({e}), falling back to browser...", flush=True)
+        webbrowser.open(shell_url)
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            return
 
 
 if __name__ == "__main__":

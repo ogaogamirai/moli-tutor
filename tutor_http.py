@@ -22,7 +22,8 @@ def _safe_child(root: Path, rel: str) -> Path | None:
     return target
 
 
-def make_handler(static_root: Path, material_root: Path | None) -> type[BaseHTTPRequestHandler]:
+def make_handler(static_root: Path, material_root: Path | None, state_callback=None) -> type[BaseHTTPRequestHandler]:
+    import json
     static_root = static_root.resolve()
     material_root = material_root.resolve() if material_root else None
 
@@ -35,6 +36,21 @@ def make_handler(static_root: Path, material_root: Path | None) -> type[BaseHTTP
             path = parsed.path or "/"
             if path in ("/", ""):
                 path = "/shell.html"
+
+            if state_callback and path == "/api/state":
+                try:
+                    state_data = state_callback()
+                    payload = json.dumps(state_data, ensure_ascii=False).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                except Exception as e:
+                    self.send_error(500, str(e))
+                return
 
             if material_root and path.startswith("/material/"):
                 rel = unquote(path[len("/material/") :])
@@ -66,8 +82,9 @@ def serve(
     material_root: Path | None,
     host: str,
     port: int,
+    state_callback=None,
 ) -> ThreadingHTTPServer:
-    handler = make_handler(static_root, material_root)
+    handler = make_handler(static_root, material_root, state_callback)
     server = ThreadingHTTPServer((host, port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
