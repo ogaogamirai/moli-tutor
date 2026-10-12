@@ -265,7 +265,7 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b13</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b14</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -495,12 +495,12 @@
       const type = action.type || "scroll_to";
       const pane = action.pane || "material";
       if (type === "focus_board") {
-        setLayout("split");
+        setLayout("split", false);
         focusBoardWithRetry(action);
         return;
       }
       if (type === "scroll_viewport" && pane === "right") {
-        setLayout("split");
+        setLayout("split", false);
         if (scrollRightPane(action)) lastActionId = action.id;
         return;
       }
@@ -662,7 +662,7 @@
       tick();
     }
 
-    function setLayout(mode) {
+    function setLayout(mode, persist) {
       const root = document.getElementById("root");
       if (!root) return;
       root.classList.remove("layout-left-only", "layout-right-only");
@@ -679,7 +679,9 @@
         const b = document.getElementById("btn-layout-split");
         if (b) b.classList.add("active");
       }
-      try { localStorage.setItem("moli_layout_mode", mode); } catch (_) {}
+      if (persist !== false) {
+        try { localStorage.setItem("moli_layout_mode", mode); } catch (_) {}
+      }
     }
 
     window.addEventListener("keydown", (e) => {
@@ -849,17 +851,25 @@
       });
     }
 
+    let lastBoardFocus = null;
+
     window.applyState = function (state) {
       if (!state || typeof state !== "object") return;
       const pageUrl = state.page_url || state.url;
       if (pageUrl) setMaterialUrl(pageUrl);
-      if (state.board_visible === true) setLayout("split");
-      else if (state.board_visible === false) setLayout("left-only");
+      if (state.board_visible === true) setLayout("split", false);
+      else if (state.board_visible === false) setLayout("left-only", false);
       renderDagMap(state.dag);
       renderBoard(state);
       if (state.latest_message) setLatestMessage(state.latest_message);
-      if (state.board_focus != null && (!state.action_request || state.action_request.type !== "focus_board")) {
-        applyBoardFocus(state.board_focus, { dim: state.board_focus_dim !== false, behavior: "auto" });
+      if (state.board_focus != null) {
+        if (
+          state.board_focus !== lastBoardFocus &&
+          (!state.action_request || state.action_request.type !== "focus_board")
+        ) {
+          applyBoardFocus(state.board_focus, { dim: state.board_focus_dim !== false, behavior: "auto" });
+        }
+        lastBoardFocus = state.board_focus;
       }
       if (state.action_request) runActionRequest(state.action_request);
       const st = document.getElementById("status");

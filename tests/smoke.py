@@ -120,7 +120,7 @@ def test_shell_hooks() -> None:
         "heading_index",
         "board_visible",
         'setLayout(savedLayout || "left-only")',
-        'setLayout("split");',
+        'setLayout("split", false);',
     ):
         check("shell: " + needle, needle in html)
 

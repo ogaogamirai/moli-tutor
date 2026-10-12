@@ -14,11 +14,12 @@ from tutor_http import serve
 
 import subprocess
 import hashlib
+import html
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "13"
+SHELL_BUILD = "14"
 DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
 D2_EXE = ROOT.parent / "d2" / "d2.exe"
 
@@ -34,7 +35,7 @@ def _render_d2_to_svg(d2_text: str) -> str:
         return _D2_CACHE[code_hash]
 
     if not D2_EXE.is_file():
-        return f'<div style="color:#ef4444;padding:8px;border:1px solid #dc2626;border-radius:4px;">D2 binary not found: {D2_EXE}</div>'
+        return f'<div style="color:#ef4444;padding:8px;border:1px solid #dc2626;border-radius:4px;">D2 binary not found: {html.escape(str(D2_EXE))}</div>'
 
     try:
         proc = subprocess.run(
@@ -51,9 +52,9 @@ def _render_d2_to_svg(d2_text: str) -> str:
             return svg
         else:
             err = proc.stderr.decode("utf-8", errors="replace")
-            return f'<div style="color:#ef4444;background:#1e1e2e;padding:12px;border:1px solid #ef4444;border-radius:6px;font-family:monospace;white-space:pre-wrap;">D2 Compile Error:\n{err}</div>'
+            return f'<div style="color:#ef4444;background:#1e1e2e;padding:12px;border:1px solid #ef4444;border-radius:6px;font-family:monospace;white-space:pre-wrap;">D2 Compile Error:\n{html.escape(err)}</div>'
     except Exception as e:
-        return f'<div style="color:#ef4444;padding:8px;">D2 Execution Error: {e}</div>'
+        return f'<div style="color:#ef4444;padding:8px;">D2 Execution Error: {html.escape(str(e))}</div>'
 
 
 def _preprocess_state(state: dict) -> dict:

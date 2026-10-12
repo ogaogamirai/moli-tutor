@@ -62,7 +62,12 @@ const document = {
   head: makeEl("head"),
 };
 const window = { addEventListener() {}, location: { href: "http://x/", origin: "http://x" } };
-const localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+const localStorageStore = {};
+const localStorage = {
+  getItem(k) { return k in localStorageStore ? localStorageStore[k] : null; },
+  setItem(k, v) { localStorageStore[k] = v; },
+  removeItem(k) { delete localStorageStore[k]; },
+};
 
 let api;
 try {
@@ -117,5 +122,11 @@ assert(
   !!a3 && a3.target_text === "第2章" && a3.match === "heading"
 );
 assert("dagNodeToAction: no anchor -> null", api.dagNodeToAction({ name: "no anchor" }) === null);
+
+api.setLayout("right-only");
+assert("setLayout persists by default", localStorageStore["moli_layout_mode"] === "right-only");
+delete localStorageStore["moli_layout_mode"];
+api.setLayout("split", false);
+assert("setLayout(mode, false) does not persist", !("moli_layout_mode" in localStorageStore));
 
 process.exit(ok ? 0 : 1);
