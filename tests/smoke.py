@@ -249,6 +249,36 @@ def test_summarize() -> None:
     check("summarize: empty -> empty", s("   ", 160, 2) == "")
 
 
+def test_status_load() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        base = Path(d)
+        state = base / "state.json"
+        packs = base / "packs"
+
+        def cli(*a: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                [sys.executable, "-X", "utf8", str(ROOT / "tutor_cli.py"), *a],
+                capture_output=True,
+                text=True,
+            )
+
+        cli("dag", str(FIXTURE), "--material-id", "sample", "--pack", str(packs), "--state", str(state))
+        check("dag --pack: dag.json written", (packs / "sample" / "dag.json").is_file())
+
+        s = cli("status", "--state", str(state))
+        check("status: material + progress shown", "material: sample" in s.stdout and "progress: 0/" in s.stdout)
+
+        st = json.loads(state.read_text(encoding="utf-8"))
+        st["dag"] = []
+        state.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+        cli("load", "--material-id", "sample", "--state", str(state), "--pack", str(packs))
+        st2 = json.loads(state.read_text(encoding="utf-8"))
+        check("load: dag restored from pack", len(st2["dag"]) == 5 and st2["material_id"] == "sample")
+
+        sj = cli("status", "--state", str(state), "--json")
+        check("status --json: progress total", json.loads(sj.stdout)["progress"]["total"] == 5)
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -268,6 +298,7 @@ def main() -> int:
     test_heading_parser()
     test_dag_cli()
     test_summarize()
+    test_status_load()
     test_example_state()
     print()
     if FAILURES:

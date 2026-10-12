@@ -425,9 +425,97 @@ def cmd_dag(args: argparse.Namespace) -> int:
         op = Path(args.outline).expanduser()
         op.write_text(_render_outline(source, nodes) + "\n", encoding="utf-8")
         result["outline"] = str(op)
+    if args.pack and args.material_id:
+        pd = Path(args.pack).expanduser() / args.material_id
+        pd.mkdir(parents=True, exist_ok=True)
+        (pd / "dag.json").write_text(json.dumps(nodes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result["pack"] = str(pd / "dag.json")
 
     sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
     sys.stdout.write("\n")
+    return 0
+
+
+def _read_state(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8-sig")) if path.is_file() else {}
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """現在の tutor_state.json を読み、AI が再開しやすい形で要約する。"""
+    sp = Path(args.state).expanduser()
+    state = _read_state(sp)
+    dag = state.get("dag") or []
+    done = sum(1 for n in dag if n.get("status") == "completed")
+    current = next((n for n in dag if n.get("status") == "active"), None)
+    latest = state.get("latest_message")
+    latest_text = latest.get("text") if isinstance(latest, dict) else latest
+
+    if args.json:
+        out = {
+            "state": str(sp),
+            "material_id": state.get("material_id"),
+            "url": state.get("url") or state.get("page_url"),
+            "board_visible": state.get("board_visible"),
+            "board_focus": state.get("board_focus"),
+            "latest_message": latest_text,
+            "progress": {"done": done, "total": len(dag)},
+            "current": current,
+            "dag": dag,
+        }
+        sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2) + "\n")
+        return 0
+
+    lines = [
+        "# Moli-Tutor status",
+        f"state: {sp}",
+        f"material: {state.get('material_id')}",
+        f"url: {state.get('url') or state.get('page_url')}",
+        f"board_visible: {state.get('board_visible')}",
+        f"progress: {done}/{len(dag)}",
+    ]
+    if current:
+        lines.append(f"current: {current.get('name')}  (heading_index {current.get('heading_index')})")
+    if state.get("board_focus"):
+        lines.append(f"board_focus: {state.get('board_focus')}")
+    if latest_text:
+        lines.append(f"latest: {latest_text}")
+    if dag:
+        lines.append("dag:")
+        for n in dag:
+            icon = {"completed": "✅", "active": "🎯"}.get(n.get("status"), "⚪")
+            lines.append(f"  [{n.get('heading_index')}] {icon} {n.get('name')}")
+            if args.outline and n.get("summary"):
+                lines.append(f"      {n['summary']}")
+    sys.stdout.write("\n".join(lines) + "\n")
+    return 0
+
+
+def cmd_load(args: argparse.Namespace) -> int:
+    """packs/<material_id>/dag.json を tutor_state.json に読み戻す（再開用）。"""
+    sp = Path(args.state).expanduser()
+    state = _read_state(sp)
+    dag_path = Path(args.pack).expanduser() / args.material_id / "dag.json"
+    if not dag_path.is_file():
+        raise SystemExit(f"pack が見つかりません: {dag_path}")
+    dag = json.loads(dag_path.read_text(encoding="utf-8-sig"))
+    state["dag"] = dag
+    state["material_id"] = args.material_id
+    sp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    done = sum(1 for n in dag if n.get("status") == "completed")
+    sys.stdout.write(
+        json.dumps(
+            {
+                "state": str(sp),
+                "material_id": args.material_id,
+                "source": str(dag_path),
+                "dag": len(dag),
+                "progress": f"{done}/{len(dag)}",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n"
+    )
     return 0
 
 
@@ -590,7 +678,20 @@ def main() -> int:
     p_dag.add_argument("--outline", default=None, help="読みやすいアウトライン(Markdown)の書き出し先")
     p_dag.add_argument("--state", default=None, help="この tutor_state.json の dag を置き換える")
     p_dag.add_argument("--material-id", dest="material_id", default=None, help="--state と併用で material_id を設定")
+    p_dag.add_argument("--pack", default=None, help="<pack>/<material-id>/dag.json に保存（要 --material-id）")
     p_dag.set_defaults(func=cmd_dag)
+
+    p_status = sub.add_parser("status", help="現在の state を読み、進捗・現在ノードを要約表示")
+    p_status.add_argument("--state", default="tutor_state.json", help="対象の tutor_state.json")
+    p_status.add_argument("--json", action="store_true", help="JSON で出力")
+    p_status.add_argument("--outline", action="store_true", help="DAG に要約も表示")
+    p_status.set_defaults(func=cmd_status)
+
+    p_load = sub.add_parser("load", help="packs/<material-id>/dag.json を state に読み戻す")
+    p_load.add_argument("--material-id", dest="material_id", required=True)
+    p_load.add_argument("--state", default="tutor_state.json", help="対象の tutor_state.json")
+    p_load.add_argument("--pack", default="packs", help="pack のベースディレクトリ（既定 packs）")
+    p_load.set_defaults(func=cmd_load)
 
     args = parser.parse_args()
     return int(args.func(args))

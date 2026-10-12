@@ -142,6 +142,25 @@ python -X utf8 tutor_cli.py dag "G:\...\index.html" --max-level 2 --state tutor_
 
 > 要約は**決定的な抽出**（先頭文ベース。LLM不使用）です。足りない所は AI が補います。学習マップでは各ノードにマウスを重ねると要約が見えます。
 
+### 状態の確認と再開（`status` / `load` / pack）
+
+AI は `status` で「いまの状態（教材・進捗・現在ノード）」を低負荷で読めます。
+
+```bat
+python -X utf8 tutor_cli.py status --state tutor_state.json
+python -X utf8 tutor_cli.py status --json          REM 機械可読
+python -X utf8 tutor_cli.py status --outline       REM 各ノードの要約も表示
+```
+
+教材ごとの DAG を **`packs/<material_id>/dag.json`** に保存し、後で読み戻せます。
+
+```bat
+REM 生成 → pack に保存 → live state にも反映
+python -X utf8 tutor_cli.py dag "G:\...\index.html" --material-id tropical-math --pack packs --state tutor_state.json
+REM 再開: pack から state に読み戻す
+python -X utf8 tutor_cli.py load --material-id tropical-math --state tutor_state.json --pack packs
+```
+
 
 ### AI 操作の CLI（`tutor_cli.py act`）
 
