@@ -112,6 +112,28 @@ AIチャット画面と横並びで表示する際、視認性を高めるため
 
 既定は **教材のみ**（ボードは隠れています）。開くには右上の「解説を開く」または **Alt+2**。`tutor_state.json` の `board_visible` でも制御できます（`true`=開く / `false`=隠す）。`focus_board` や右ペインへの `scroll_viewport` を送ると自動で開きます。
 
+### 教材が出ないとき（404）
+
+左ペインが404のときは、**起動時の `--material-dir` と `tutor_state.json` の `url` が不一致**です。両者を同じ教材に合わせてください（左ペインにも案内が出ます）。
+
+### アクセスログ（デバッグ）
+
+環境変数 `MOLI_TUTOR_ACCESS_LOG=1` を付けて起動すると、HTTPリクエストを stderr に出力します。
+
+```bat
+set MOLI_TUTOR_ACCESS_LOG=1
+python -X utf8 tutor_cockpit.py --state tutor_state.json --material-dir "G:\...\tropical-math"
+```
+
+### テスト
+
+```bat
+python -X utf8 tests/smoke.py
+```
+
+D2変換・state素通し・`/api/state`・パストラバーサル・shellのフックを確認し、`node` があれば学習マップの描画も検証します。
+
+
 
 **論文試読（Interactive Sketchpad）:** `start_sketchpad_demo.bat` → `tutor_demo_sketchpad.py` — 手順は `docs/SKETCHPAD_DEMO.md`。
 

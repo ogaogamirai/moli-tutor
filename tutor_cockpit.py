@@ -18,7 +18,7 @@ import hashlib
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "11"
+SHELL_BUILD = "12"
 DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
 D2_EXE = ROOT.parent / "d2" / "d2.exe"
 

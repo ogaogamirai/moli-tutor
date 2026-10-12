@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import mimetypes
+import os
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,6 +13,8 @@ from urllib.parse import unquote, urlparse
 
 
 def _safe_child(root: Path, rel: str) -> Path | None:
+    if "\x00" in rel:
+        return None
     rel = rel.replace("\\", "/").lstrip("/")
     if ".." in rel.split("/"):
         return None
@@ -29,6 +33,9 @@ def make_handler(static_root: Path, material_root: Path | None, state_callback=N
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args) -> None:
+            if os.environ.get("MOLI_TUTOR_ACCESS_LOG") and sys.stderr:
+                sys.stderr.write("[moli-tutor] " + (fmt % args) + "\n")
+                sys.stderr.flush()
             return
 
         def do_GET(self) -> None:

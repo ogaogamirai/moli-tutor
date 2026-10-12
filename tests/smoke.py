@@ -44,8 +44,11 @@ def test_d2_preprocess() -> None:
     out = tutor_cockpit._preprocess_state(state)
     sec = out["sections"][0]
     check("d2: d2_source preserved", sec.get("d2_source") == "a -> b")
-    content = str(sec.get("content", "")).lower()
-    check("d2: content compiled to svg or error box", "<svg" in content or "error" in content)
+    if (ROOT.parent / "d2" / "d2.exe").is_file():
+        content = str(sec.get("content", "")).lower()
+        check("d2: content compiled to svg", "<svg" in content)
+    else:
+        print("SKIP d2: compile (d2.exe not found)")
 
 
 def test_passthrough() -> None:
@@ -87,13 +90,32 @@ def test_http() -> None:
         server.shutdown()
 
 
+def test_http_nul_path() -> None:
+    """A path with an embedded NUL must be rejected (404), not crash the handler."""
+    server = tutor_http.serve(ROOT / "static", None, "127.0.0.1", 0, state_callback=lambda: {})
+    try:
+        port = server.server_address[1]
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{port}/material/a%00b", timeout=5)
+            code: object = 200
+        except urllib.error.HTTPError as e:
+            code = e.code
+        except Exception as e:  # noqa: BLE001
+            code = "EXC:" + type(e).__name__
+        check("http: NUL path -> 404 (no crash)", code == 404)
+    finally:
+        server.shutdown()
+
+
 def test_shell_hooks() -> None:
     html = (ROOT / "static" / "shell.html").read_text(encoding="utf-8")
     for needle in (
         'id="dag-map"',
         'id="dag-list"',
+        'id="material-error"',
         "function renderDagMap",
         "function jumpToDagNode",
+        "function checkMaterialError",
         "board_visible",
         'setLayout(savedLayout || "left-only")',
         'setLayout("split");',
@@ -127,6 +149,7 @@ def main() -> int:
     test_d2_preprocess()
     test_passthrough()
     test_http()
+    test_http_nul_path()
     test_shell_hooks()
     test_shell_render()
     test_example_state()

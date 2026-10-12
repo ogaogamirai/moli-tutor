@@ -10,8 +10,24 @@
     html, body { margin: 0; height: 100%; font-family: "Segoe UI", system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
     #root { display: flex; height: 100%; width: 100%; }
     #left, #right { flex: 1 1 50%; min-width: 0; height: 100%; }
-    #left { border-right: 1px solid #334155; background: #fff; }
+    #left { position: relative; border-right: 1px solid #334155; background: #fff; }
     #material { width: 100%; height: 100%; border: 0; }
+    #material-error {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      color: #fca5a5;
+      text-align: center;
+      padding: 24px;
+      font-size: 0.95rem;
+      line-height: 1.7;
+      white-space: pre-line;
+      z-index: 900;
+    }
+    #material-error.show { display: flex; }
     #right {
       display: flex;
       flex-direction: column;
@@ -245,10 +261,11 @@
         <button class="layout-btn" onclick="setLayout('split')">解説を開く ⮞</button>
       </div>
       <iframe id="material" title="教材ビューア"></iframe>
+      <div id="material-error"></div>
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b11</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b12</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -369,6 +386,29 @@
       if (queuedAction) startActionRetries(queuedAction);
     }
 
+    function checkMaterialError(frame) {
+      const box = document.getElementById("material-error");
+      if (!box || !frame) return;
+      let bad = false;
+      try {
+        const doc = frame.contentDocument;
+        if (!doc) return;
+        const title = doc.title || "";
+        const body = doc.body ? (doc.body.textContent || "").slice(0, 300) : "";
+        bad = /Error response/i.test(title) || /Error code:\s*404/.test(body);
+      } catch (_) {
+        return;
+      }
+      if (bad) {
+        box.textContent =
+          "⚠️ 教材が見つかりません\n\n左ペインのURLが配信対象にありません。\n起動時の --material-dir と tutor_state.json の url を一致させてください。\n\n" +
+          (frame.getAttribute("src") || "");
+        box.classList.add("show");
+      } else {
+        box.classList.remove("show");
+      }
+    }
+
     function setMaterialUrl(url) {
       const frame = getMaterialFrame();
       if (!url || !frame) return;
@@ -378,10 +418,12 @@
         frame.onload = function () {
           bridgeInlinePromise = null;
           onMaterialFrameReady();
+          checkMaterialError(frame);
         };
         frame.setAttribute("src", url);
       } else if (frame.contentDocument && frame.contentDocument.readyState === "complete") {
         onMaterialFrameReady();
+        checkMaterialError(frame);
       }
     }
 
