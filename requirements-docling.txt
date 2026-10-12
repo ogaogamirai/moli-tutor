@@ -1,0 +1,4 @@
+# Moli-Tutor 任意機能: Docling（PDF / 複雑な HTML の構造化取り込み）
+# setup_docling.bat / setup_docling.sh が参照する。
+# 本体は Drive 等の同期フォルダに置かない（ローカルの非同期領域へ）。
+docling

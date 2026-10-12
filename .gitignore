@@ -7,3 +7,14 @@ venv/
 
 # 実行時状態（家・セッションごとにローカル生成。正本は example）
 tutor_state.json
+
+# 退避（安全な破棄）と作業バックアップ
+.trash/
+*.bak_*
+
+# Docling（任意・PDF取り込み）— 実体は Drive 外のローカル、ここにはパス記録のみ
+docling.path
+.docling/
+# ingest 出力
+*_docling/
+*_artifacts/

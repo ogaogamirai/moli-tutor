@@ -83,7 +83,14 @@ python -X utf8 tutor_cockpit.py --state tutor_state.json
 }
 ```
 
-`type`: `math` | `mermaid` | `svg` | `text`。`section_id` の代わりに `section_index`（0 始まり）も可。細部だけ見せたいときは `scroll_viewport` + `pane: "right"` も併用可。
+`type`: `math` | `mermaid` | `svg` | `text` | `d2`（D2テキスト直接入力 ➔ 0.04秒自動SVGコンパイル ＆ 画面からSVG保存・D2コピー対応）。`section_id` の代わりに `section_index`（0 始まり）も可。細部だけ見せたいときは `scroll_viewport` + `pane: "right"` も併用可。
+
+### 左右ペイン折りたたみ（AIチャット並列表示対応）
+AIチャット画面と横並びで表示する際、視認性を高めるためワンクリックおよびショートカットでペインを切り替えられます：
+- **`◀ 教材のみ` (Alt+1)**: 生教材を全幅表示（解説ボードを一時隠す）
+- **`50:50` (Alt+2)**: 通常の2分割表示
+- **`解説のみ ▶` (Alt+3)**: 解説ボード（D2・数式・図解）を全幅表示（教材を一時隠す）
+※教材のみモードでも右上の「解説を開く」ボタンで即座に復帰できます。モードはブラウザに記憶されます。
 
 デモ: `python -X utf8 tutor_demo_focus.py`（コックピット起動中に `tutor_state.json` を更新）。
 
@@ -124,3 +131,37 @@ Agent は stdout の Markdown をそのまま読めます。
 - 章ジャンプ API（左ペインへの JS 注入）
 - D2 / Mermaid 枠
 - `tutor_state.json` のスキーマ版管理・複数プロファイル
+
+## Docling（任意・PDF/複雑な HTML の取り込み）
+
+PDF や複雑な HTML を **構造化 Markdown** に変換して教材化する任意機能です（`tutor_cli.py ingest`）。
+Web ページは従来どおり Moli（`fetch`）を使い、**PDF は Docling** が担います。**図・表も抽出**します。
+
+### セットアップ（初回のみ）
+
+```bat
+setup_docling.bat
+```
+
+- 既定のインストール先: `%LOCALAPPDATA%\moli-tutor\docling`（**クラウド同期フォルダは避ける**）
+- 変更する場合は引数で指定: `setup_docling.bat "D:\tools\docling"`
+- Mac/Linux: `./setup_docling.sh`
+- インストール先は `docling.path`（git 除外）に記録され、`tutor_cli.py` が自動で解決します
+- ディスク約 1.9GB（venv 約1.1GB ＋ モデル 約0.8GB）。**モデルは公式から取得**（再配布しません）
+
+### 使い方
+
+```bat
+python -X utf8 tutor_cli.py ingest "G:\path\to\book.pdf"
+python -X utf8 tutor_cli.py ingest https://arxiv.org/pdf/1706.03762 --out .\materials\transformer
+```
+
+出力: `<name>.md`（Markdown）／`<name>.json`（DoclingDocument）／`<name>_artifacts/`（図PNG）／`headings.json`（見出し）。
+画像参照は相対パスに正規化され、HTTP 配信の左ペインで表示できます。
+
+### 注意（実測）
+
+- **横書き和文**: 読み順・見出し・表・図とも良好
+- **縦書き和文**: 読み順が逆転（要前処理）
+- **スキャン PDF**: OCR は使えるが促音・句読点・誤字あり（校閲必須）
+- 環境変数 `DOCLING_EXE` で docling 実行ファイルを上書きできます
