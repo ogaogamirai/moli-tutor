@@ -19,7 +19,7 @@ import html
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "14"
+SHELL_BUILD = "15"
 DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
 D2_EXE = ROOT.parent / "d2" / "d2.exe"
 
@@ -80,7 +80,7 @@ def _preprocess_state(state: dict) -> dict:
 
 
 def _load_state(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8")
+    text = path.read_text(encoding="utf-8-sig")
     raw_state = json.loads(text)
     return _preprocess_state(raw_state)
 

@@ -178,6 +178,87 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_act(args: argparse.Namespace) -> int:
+    """tutor_state.json に action_request を1つ追記する（id は既存 +1）。
+
+    エージェントが JSON を手書きせずに教材を操作するための薄い CLI。
+    """
+    state_path = Path(args.state).expanduser()
+    state: dict = {}
+    if state_path.is_file():
+        state = json.loads(state_path.read_text(encoding="utf-8-sig"))
+
+    prev_id = 0
+    ar = state.get("action_request")
+    if isinstance(ar, dict) and isinstance(ar.get("id"), int):
+        prev_id = ar["id"]
+    new_id = prev_id + 1
+
+    if args.url:
+        state["url"] = args.url
+        state["page_url"] = args.url
+    if args.board_visible is not None:
+        state["board_visible"] = args.board_visible == "true"
+    if args.board_focus is not None:
+        state["board_focus"] = args.board_focus
+    if args.latest_message is not None:
+        state["latest_message"] = {"id": new_id, "text": args.latest_message}
+
+    if args.clear_highlight:
+        action: dict = {"id": new_id, "type": "clear_highlight"}
+    elif args.navigate_to:
+        action = {"id": new_id, "type": "navigate_to", "url": args.navigate_to}
+        if args.then_scroll_to:
+            action["then_scroll_to"] = args.then_scroll_to
+    elif args.focus_board is not None:
+        action = {"id": new_id, "type": "focus_board", "section_id": args.focus_board}
+        if args.no_dim:
+            action["dim"] = False
+    elif args.heading_index is not None:
+        action = {"id": new_id, "type": "scroll_to", "heading_index": args.heading_index, "match": "heading"}
+    elif args.heading is not None:
+        action = {"id": new_id, "type": "scroll_to", "target_text": args.heading, "match": "heading"}
+    elif args.scroll_to is not None:
+        action = {"id": new_id, "type": "scroll_to", "target_text": args.scroll_to}
+        if args.match:
+            action["match"] = args.match
+        if args.occurrence is not None:
+            action["occurrence"] = args.occurrence
+    elif args.scroll_hash:
+        action = {"id": new_id, "type": "scroll_hash", "hash": args.scroll_hash}
+    elif args.scroll_viewport:
+        action = {"id": new_id, "type": "scroll_viewport"}
+        if args.pane:
+            action["pane"] = args.pane
+        if args.y_ratio is not None:
+            action["y_ratio"] = args.y_ratio
+        if args.y_px is not None:
+            action["y_px"] = args.y_px
+        if args.dy is not None:
+            action["dy"] = args.dy
+    else:
+        raise SystemExit(
+            "action を1つ指定してください "
+            "(--scroll-to / --heading / --heading-index / --scroll-hash / --scroll-viewport / "
+            "--focus-board / --navigate-to / --clear-highlight)"
+        )
+
+    if args.behavior and action.get("type") in ("scroll_to", "scroll_hash", "scroll_viewport"):
+        action["behavior"] = args.behavior
+
+    state["action_request"] = action
+    out = {"state": str(state_path), "action_request": action}
+
+    if not args.dry_run:
+        state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    else:
+        out["dry_run"] = True
+
+    sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Moli-Tutor agent CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -212,6 +293,32 @@ def main() -> int:
     p_ingest.add_argument("--ocr", action="store_true", help="OCR を有効化（スキャン PDF 向け）")
     p_ingest.add_argument("--limit", type=int, default=200, help="headings.json に載せる見出しの上限")
     p_ingest.set_defaults(func=cmd_ingest)
+
+    p_act = sub.add_parser("act", help="tutor_state.json に action_request を1つ追記（id 自動+1）")
+    p_act.add_argument("--state", default="tutor_state.json", help="対象の tutor_state.json")
+    p_act.add_argument("--scroll-to", dest="scroll_to", help="語へスクロール＋ハイライト（見出し優先→本文）")
+    p_act.add_argument("--heading", help="見出しテキストへ（見出しのみ対象）")
+    p_act.add_argument("--heading-index", dest="heading_index", type=int, help="見出しの N番目（0始まり）へ")
+    p_act.add_argument("--scroll-hash", dest="scroll_hash", help="要素 id へ（# は付けない）")
+    p_act.add_argument("--scroll-viewport", dest="scroll_viewport", action="store_true", help="割合/px/差分スクロール")
+    p_act.add_argument("--pane", choices=("material", "right"), help="scroll_viewport の対象ペイン")
+    p_act.add_argument("--y-ratio", dest="y_ratio", type=float)
+    p_act.add_argument("--y-px", dest="y_px", type=float)
+    p_act.add_argument("--dy", type=float)
+    p_act.add_argument("--match", choices=("first", "all", "heading"))
+    p_act.add_argument("--occurrence", type=int)
+    p_act.add_argument("--behavior", choices=("smooth", "auto"))
+    p_act.add_argument("--clear-highlight", dest="clear_highlight", action="store_true", help="ハイライトを解除")
+    p_act.add_argument("--focus-board", dest="focus_board", help="解説ブロックへフォーカス")
+    p_act.add_argument("--no-dim", dest="no_dim", action="store_true", help="focus_board で他を薄くしない")
+    p_act.add_argument("--navigate-to", dest="navigate_to", help="教材ページを切替")
+    p_act.add_argument("--then-scroll-to", dest="then_scroll_to", help="navigate_to 後にスクロールする語")
+    p_act.add_argument("--url", help="state の url / page_url を更新")
+    p_act.add_argument("--board-visible", dest="board_visible", choices=("true", "false"), help="ボードの開閉")
+    p_act.add_argument("--board-focus", dest="board_focus", help="state の board_focus を更新")
+    p_act.add_argument("--latest-message", dest="latest_message", help="latest_message を更新")
+    p_act.add_argument("--dry-run", dest="dry_run", action="store_true", help="書き込まずに結果だけ表示")
+    p_act.set_defaults(func=cmd_act)
 
     args = parser.parse_args()
     return int(args.func(args))

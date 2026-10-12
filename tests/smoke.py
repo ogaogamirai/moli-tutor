@@ -16,6 +16,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import types
 import urllib.error
 import urllib.request
@@ -117,6 +118,9 @@ def test_shell_hooks() -> None:
         "function jumpToDagNode",
         "function dagNodeToAction",
         "function checkMaterialError",
+        "function describeAction",
+        "function refreshStatus",
+        "clear_highlight",
         "heading_index",
         "board_visible",
         'setLayout(savedLayout || "left-only")',
@@ -157,6 +161,44 @@ def test_bridge_anchor() -> None:
     check("bridge: heading anchors by index and normalized text (node)", proc.returncode == 0)
 
 
+def test_load_state_bom() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "state.json"
+        p.write_bytes(b"\xef\xbb\xbf" + json.dumps({"action_request": {"id": 5}}).encode("utf-8"))
+        st = tutor_cockpit._load_state(p)
+        check("load_state: tolerates UTF-8 BOM", st["action_request"]["id"] == 5)
+
+
+def test_act_cli() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "state.json"
+        p.write_text(json.dumps({"action_request": {"id": 10}}), encoding="utf-8")
+
+        def run(*extra: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                [sys.executable, "-X", "utf8", str(ROOT / "tutor_cli.py"), "act", "--state", str(p), *extra],
+                capture_output=True,
+                text=True,
+            )
+
+        run("--scroll-to", "半環")
+        st1 = json.loads(p.read_text(encoding="utf-8"))
+        check(
+            "act: id -> 11, scroll_to target_text",
+            st1["action_request"]["id"] == 11 and st1["action_request"]["target_text"] == "半環",
+        )
+        run("--heading-index", "26")
+        st2 = json.loads(p.read_text(encoding="utf-8"))
+        check(
+            "act: id -> 12, heading_index",
+            st2["action_request"]["id"] == 12 and st2["action_request"]["heading_index"] == 26,
+        )
+        run("--clear-highlight")
+        st3 = json.loads(p.read_text(encoding="utf-8"))
+        check("act: clear_highlight", st3["action_request"]["type"] == "clear_highlight")
+        check("act: no action -> non-zero exit", run().returncode != 0)
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -171,6 +213,8 @@ def main() -> int:
     test_shell_hooks()
     test_shell_render()
     test_bridge_anchor()
+    test_load_state_bom()
+    test_act_cli()
     test_example_state()
     print()
     if FAILURES:

@@ -265,7 +265,7 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b14</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b15</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -357,6 +357,9 @@
         result = api.scrollViewport(action);
       } else if (type === "scroll_hash" && action.hash) {
         result = api.scrollToHash(action.hash, action);
+      } else if (type === "clear_highlight") {
+        api.clearAllHighlights();
+        result = { success: true };
       }
       if (result && result.success && action.id != null) {
         lastActionId = action.id;
@@ -470,6 +473,7 @@
 
     function startActionRetries(action) {
       if (!action || action.id == null) return;
+      setPointer(describeAction(action));
       if (retryTimer) clearInterval(retryTimer);
       const payload = actionToPayload(action);
       let n = 0;
@@ -494,6 +498,12 @@
       if (lastActionId === action.id) return;
       const type = action.type || "scroll_to";
       const pane = action.pane || "material";
+      if (type === "clear_highlight") {
+        setPointer("");
+        dispatchMaterialAction(action);
+        lastActionId = action.id;
+        return;
+      }
       if (type === "focus_board") {
         setLayout("split", false);
         focusBoardWithRetry(action);
@@ -851,6 +861,32 @@
       });
     }
 
+    let lastSyncLabel = "";
+    let lastPointer = "";
+
+    function describeAction(action) {
+      if (!action) return "";
+      if (action.heading_index != null) return "見出し #" + action.heading_index;
+      if (action.heading) return action.heading;
+      if (action.target_text) return action.target_text;
+      if (action.hash) return action.hash;
+      if (action.url) return action.url;
+      return action.type || "";
+    }
+
+    function setPointer(text) {
+      lastPointer = text || "";
+      refreshStatus();
+    }
+
+    function refreshStatus() {
+      const st = document.getElementById("status");
+      if (!st) return;
+      let s = lastSyncLabel || "tutor_state.json を監視中…";
+      if (lastPointer) s += "  ·  🎯 " + lastPointer;
+      st.textContent = s;
+    }
+
     let lastBoardFocus = null;
 
     window.applyState = function (state) {
@@ -872,11 +908,9 @@
         lastBoardFocus = state.board_focus;
       }
       if (state.action_request) runActionRequest(state.action_request);
-      const st = document.getElementById("status");
-      if (st) {
-        const dag = state.dag ? " · DAG " + state.dag.length + " nodes" : "";
-        st.textContent = "同期: " + new Date().toLocaleTimeString() + dag;
-      }
+      const dag = state.dag ? " · DAG " + state.dag.length + " nodes" : "";
+      lastSyncLabel = "同期: " + new Date().toLocaleTimeString() + dag;
+      refreshStatus();
     };
 
     // ブラウザ直接表示用（pywebview外でも状態変更を自動反映）

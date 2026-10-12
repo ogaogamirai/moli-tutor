@@ -123,6 +123,27 @@ python -X utf8 tutor_cli.py headings "G:\path\to\textbook.html"
 ```
 
 
+### AI 操作の CLI（`tutor_cli.py act`）
+
+エージェントは `tutor_state.json` を手書きせず、`act` で1操作ずつ追記できます（`id` は自動で +1）。
+
+```bat
+python -X utf8 tutor_cli.py act --scroll-to "半環"
+python -X utf8 tutor_cli.py act --heading "第2章" --behavior smooth
+python -X utf8 tutor_cli.py act --heading-index 26
+python -X utf8 tutor_cli.py act --clear-highlight
+python -X utf8 tutor_cli.py act --focus-board semiring --no-dim
+python -X utf8 tutor_cli.py act --scroll-viewport --y-ratio 0.35
+python -X utf8 tutor_cli.py act --navigate-to "http://127.0.0.1:8777/material/index.html" --then-scroll-to "半環"
+python -X utf8 tutor_cli.py act --latest-message "では、ここを見てみましょう"
+python -X utf8 tutor_cli.py act --url "http://..." --board-visible true
+```
+
+- `--state PATH` で対象を指定（既定 `tutor_state.json`）／ `--dry-run` で書き込まず確認
+- ハイライト解除は `--clear-highlight`（shell 側も `clear_highlight` に対応）
+- 「いま指している場所」は画面下の status に **🎯** で表示
+- `tutor_state.json` は BOM 付きでも読めます（`utf-8-sig`）
+
 ### ボードの開閉
 
 既定は **教材のみ**（ボードは隠れています）。開くには右上の「解説を開く」または **Alt+2**。`tutor_state.json` の `board_visible` でも制御できます（`true`=開く / `false`=隠す）。`focus_board` や右ペインへの `scroll_viewport` を送ると自動で開きます。
