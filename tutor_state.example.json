@@ -5,7 +5,12 @@
   "session_mode": "explain_ja",
   "page_url": "http://127.0.0.1:8777/material/example/index.html",
   "url": "http://127.0.0.1:8777/material/example/index.html",
-  "dag": [],
+  "board_visible": true,
+  "dag": [
+    { "id": "PRE_01", "name": "前提: 基本の用語", "type": "prerequisite", "status": "completed", "target_text": "冒頭" },
+    { "id": "KC_01", "name": "1. 核心の考え方", "type": "concept", "status": "active", "target_text": "冒頭" },
+    { "id": "KC_02", "name": "2. 境界の例", "type": "concept", "status": "pending", "target_text": "冒頭" }
+  ],
   "sections": [
     {
       "id": "guide",

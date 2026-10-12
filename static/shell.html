@@ -71,6 +71,63 @@
       display: block;
     }
 
+    #dag-map {
+      flex: 0 0 auto;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: #131c2e;
+      padding: 8px 10px 10px;
+      max-height: 38%;
+      overflow: auto;
+    }
+    #dag-map[hidden] { display: none; }
+    .dag-map-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .dag-map-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .dag-progress { margin-left: auto; font-size: 0.72rem; color: #64748b; }
+    .dag-list { display: flex; flex-direction: column; gap: 2px; }
+    .dag-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      border: 1px solid transparent;
+    }
+    .dag-node:hover { background: #1e293b; }
+    .dag-node.active { background: rgba(30, 58, 138, 0.25); border-color: #3b82f6; }
+    .dag-node.completed { color: #64748b; }
+    .dag-node.completed .dag-node-label { text-decoration: line-through; }
+    .dag-node-status { width: 1.1em; text-align: center; }
+    .dag-node-label {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dag-node-type {
+      font-size: 0.62rem;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      padding: 1px 6px;
+      white-space: nowrap;
+    }
+
     .board-section-header {
       display: flex;
       align-items: center;
@@ -191,13 +248,20 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b10</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b11</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
           <button class="layout-btn" id="btn-layout-right" onclick="setLayout('right-only')" title="解説のみ全幅 (Alt+3)">解説のみ ▶</button>
         </div>
       </div>
+      <section id="dag-map" hidden>
+        <div class="dag-map-head">
+          <span class="dag-map-title">🗺️ 学習マップ</span>
+          <span class="dag-progress" id="dag-progress"></span>
+        </div>
+        <div class="dag-list" id="dag-list"></div>
+      </section>
       <div id="tutor-prompt"></div>
       <div id="right-scroll">
         <div id="board-stack" class="board-document" aria-label="解説ボード（一体表示・フォーカスで誘導）"></div>
@@ -387,10 +451,12 @@
       const type = action.type || "scroll_to";
       const pane = action.pane || "material";
       if (type === "focus_board") {
+        setLayout("split");
         focusBoardWithRetry(action);
         return;
       }
       if (type === "scroll_viewport" && pane === "right") {
+        setLayout("split");
         if (scrollRightPane(action)) lastActionId = action.id;
         return;
       }
@@ -582,8 +648,63 @@
 
     try {
       const savedLayout = localStorage.getItem("moli_layout_mode");
-      if (savedLayout) setLayout(savedLayout);
+      setLayout(savedLayout || "left-only");
     } catch (_) {}
+
+    let lastDagKey = null;
+
+    function renderDagMap(dag) {
+      const wrap = document.getElementById("dag-map");
+      const list = document.getElementById("dag-list");
+      if (!wrap || !list) return;
+      const nodes = Array.isArray(dag) ? dag : [];
+      const key = JSON.stringify(nodes);
+      if (key === lastDagKey) return;
+      lastDagKey = key;
+      if (!nodes.length) {
+        wrap.hidden = true;
+        list.replaceChildren();
+        return;
+      }
+      wrap.hidden = false;
+      list.replaceChildren();
+      let done = 0;
+      nodes.forEach((node, idx) => {
+        const status = node.status || "pending";
+        if (status === "completed") done += 1;
+        const item = document.createElement("div");
+        item.className = "dag-node " + status;
+        const statusEl = document.createElement("span");
+        statusEl.className = "dag-node-status";
+        statusEl.textContent = status === "completed" ? "✅" : status === "active" ? "🎯" : "⚪";
+        const label = document.createElement("span");
+        label.className = "dag-node-label";
+        label.textContent = node.name || node.id || "node " + idx;
+        label.title = node.name || "";
+        const typeEl = document.createElement("span");
+        typeEl.className = "dag-node-type";
+        typeEl.textContent = node.type === "prerequisite" ? "前提" : "概念";
+        item.append(statusEl, label, typeEl);
+        item.addEventListener("click", () => jumpToDagNode(node));
+        list.appendChild(item);
+      });
+      const prog = document.getElementById("dag-progress");
+      if (prog) prog.textContent = done + "/" + nodes.length + " 完了";
+    }
+
+    function jumpToDagNode(node) {
+      if (!node || !node.target_text) return;
+      const action = {
+        id: Date.now(),
+        type: "scroll_to",
+        target_text: node.target_text,
+        match: node.match || "first",
+        behavior: "smooth"
+      };
+      queuedAction = action;
+      const frame = getMaterialFrame();
+      if (frame && frame.getAttribute("src")) startActionRetries(action);
+    }
 
     function renderBoard(state) {
       const stack = document.getElementById("board-stack");
@@ -676,6 +797,9 @@
       if (!state || typeof state !== "object") return;
       const pageUrl = state.page_url || state.url;
       if (pageUrl) setMaterialUrl(pageUrl);
+      if (state.board_visible === true) setLayout("split");
+      else if (state.board_visible === false) setLayout("left-only");
+      renderDagMap(state.dag);
       renderBoard(state);
       if (state.latest_message) setLatestMessage(state.latest_message);
       if (state.board_focus != null && (!state.action_request || state.action_request.type !== "focus_board")) {

@@ -94,6 +94,25 @@ AIチャット画面と横並びで表示する際、視認性を高めるため
 
 デモ: `python -X utf8 tutor_demo_focus.py`（コックピット起動中に `tutor_state.json` を更新）。
 
+### 学習マップ（DAG）
+
+`dag` を入れると、ボード上部に **学習マップ**（学ぶ順番と現在地）が出ます。ノードをクリックすると、教材の `target_text` へスクロール＆ハイライトします。
+
+```json
+"dag": [
+  { "id": "KC_01", "name": "1. 半環", "type": "concept", "status": "active", "target_text": "半環" }
+]
+```
+
+- `type`: `prerequisite`（前提） | `concept`（概念）
+- `status`: `pending`（⚪） | `active`（🎯） | `completed`（✅）
+- 進捗は自動表示（`n/m 完了`）
+
+### ボードの開閉
+
+既定は **教材のみ**（ボードは隠れています）。開くには右上の「解説を開く」または **Alt+2**。`tutor_state.json` の `board_visible` でも制御できます（`true`=開く / `false`=隠す）。`focus_board` や右ペインへの `scroll_viewport` を送ると自動で開きます。
+
+
 **論文試読（Interactive Sketchpad）:** `start_sketchpad_demo.bat` → `tutor_demo_sketchpad.py` — 手順は `docs/SKETCHPAD_DEMO.md`。
 
 `y_ratio` はページ全体の 0（先頭）〜1（末尾）。`behavior`: `"smooth"` | `"auto"`（省略時 smooth）。
