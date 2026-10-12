@@ -14,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.request import pathname2url
 
@@ -178,6 +179,177 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 0
 
 
+_VOID_TAGS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "param", "source", "track", "wbr",
+}
+
+DAG_SKIP_DEFAULT = r"^(目次|内容|contents|table of contents|索引|index|参考文献|references)\s*$"
+DAG_PREREQ_DEFAULT = r"(前提|基礎|はじめに|概要|導入|introduction|prerequisite|background|overview)"
+
+
+class _HeadingParser(HTMLParser):
+    """見出し（h1-h6 と role='heading'）を DOM 順に抽出する。
+
+    material_bridge.js の collectHeadings() と同じ集合・同じ順序になるよう作る
+    （querySelectorAll('h1,...,h6,[role=heading]') は文書順で重複なし）。
+    """
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.headings: list[dict] = []
+        self._cap: dict | None = None
+        self._depth = 0
+        self._stack: list[str] = []
+
+    @staticmethod
+    def _level_of(tag: str, attrs: list[tuple[str, str | None]]) -> int | None:
+        a = dict(attrs)
+        if re.fullmatch(r"h[1-6]", tag):
+            return int(tag[1])
+        if (a.get("role") or "").lower() == "heading":
+            try:
+                return int(a.get("aria-level") or "2")
+            except ValueError:
+                return 2
+        return None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        level = self._level_of(tag, attrs)
+        if level is not None:
+            if self._cap is not None:
+                self._finish()
+            self._stack.append(tag)
+            self._depth = len(self._stack)
+            self._cap = {"level": level, "id": dict(attrs).get("id") or "", "parts": []}
+            return
+        if tag not in _VOID_TAGS:
+            self._stack.append(tag)
+
+    def handle_data(self, data: str) -> None:
+        if self._cap is not None:
+            self._cap["parts"].append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if (
+            self._cap is not None
+            and self._stack
+            and len(self._stack) == self._depth
+            and self._stack[-1] == tag
+        ):
+            self._finish()
+        if self._stack:
+            for i in range(len(self._stack) - 1, -1, -1):
+                if self._stack[i] == tag:
+                    del self._stack[i:]
+                    break
+
+    def _finish(self) -> None:
+        cap = self._cap
+        self._cap = None
+        if cap is None:
+            return
+        text = re.sub(r"\s+", " ", "".join(cap["parts"])).strip()
+        self.headings.append({"level": cap["level"], "text": text, "id": cap["id"]})
+
+
+def _extract_headings_from_html(text: str) -> list[dict]:
+    parser = _HeadingParser()
+    parser.feed(text)
+    parser.close()
+    return parser.headings
+
+
+def _decode_bytes(data: bytes) -> str:
+    for enc in ("utf-8-sig", "cp932"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
+def _load_material(target: str) -> tuple[str, str]:
+    p = Path(target).expanduser()
+    if p.is_file():
+        return str(p.resolve()), _decode_bytes(p.read_bytes())
+    if target.startswith(("http://", "https://")):
+        from urllib.request import urlopen
+
+        with urlopen(target, timeout=30) as resp:
+            return target, _decode_bytes(resp.read())
+    raise SystemExit(f"パスまたは URL が見つかりません: {target}")
+
+
+def _headings_to_dag(headings: list[dict], args: argparse.Namespace) -> list[dict]:
+    skip_re = None if args.no_skip else re.compile(args.skip_re or DAG_SKIP_DEFAULT, re.I)
+    prereq_re = re.compile(args.prereq_re or DAG_PREREQ_DEFAULT, re.I)
+    include_re = re.compile(args.include_re, re.I) if args.include_re else None
+    exclude_re = re.compile(args.exclude_re, re.I) if args.exclude_re else None
+
+    nodes: list[dict] = []
+    for index, h in enumerate(headings):
+        text = h["text"]
+        level = h["level"]
+        if not text:
+            continue
+        if level > args.max_level:
+            continue
+        if level == 1 and not args.include_h1:
+            continue
+        if skip_re and skip_re.search(text):
+            continue
+        if include_re and not include_re.search(text):
+            continue
+        if exclude_re and exclude_re.search(text):
+            continue
+        nodes.append(
+            {
+                "id": f"H{index}",
+                "name": text,
+                "type": "prerequisite" if prereq_re.search(text) else "concept",
+                "status": "pending",
+                "heading_index": index,
+                "heading": text,
+                "level": level,
+            }
+        )
+        if args.limit and len(nodes) >= args.limit:
+            break
+    return nodes
+
+
+def cmd_dag(args: argparse.Namespace) -> int:
+    """教材の見出しから DAG 雛形を生成する（意味づけは AI が直す）。"""
+    source, html_text = _load_material(args.target)
+    headings = _extract_headings_from_html(html_text)
+    nodes = _headings_to_dag(headings, args)
+
+    result: dict = {
+        "source": source,
+        "headings": len(headings),
+        "count": len(nodes),
+        "dag": nodes,
+    }
+
+    if args.state:
+        sp = Path(args.state).expanduser()
+        state = json.loads(sp.read_text(encoding="utf-8-sig")) if sp.is_file() else {}
+        state["dag"] = nodes
+        if args.material_id:
+            state["material_id"] = args.material_id
+        sp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result["state"] = str(sp)
+    if args.out:
+        op = Path(args.out).expanduser()
+        op.write_text(json.dumps(nodes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result["out"] = str(op)
+
+    sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
+    return 0
+
+
 def cmd_act(args: argparse.Namespace) -> int:
     """tutor_state.json に action_request を1つ追記する（id は既存 +1）。
 
@@ -319,6 +491,21 @@ def main() -> int:
     p_act.add_argument("--latest-message", dest="latest_message", help="latest_message を更新")
     p_act.add_argument("--dry-run", dest="dry_run", action="store_true", help="書き込まずに結果だけ表示")
     p_act.set_defaults(func=cmd_act)
+
+    p_dag = sub.add_parser("dag", help="教材の見出しから DAG 雛形を生成（heading_index 付き）")
+    p_dag.add_argument("target", help="HTML のパスまたは URL")
+    p_dag.add_argument("--max-level", dest="max_level", type=int, default=3, help="含める見出しの最大レベル（既定 3）")
+    p_dag.add_argument("--include-h1", dest="include_h1", action="store_true", help="h1（通常はタイトル）も含める")
+    p_dag.add_argument("--skip-re", dest="skip_re", default=None, help="除外する見出しの正規表現（目次など）")
+    p_dag.add_argument("--no-skip", dest="no_skip", action="store_true", help="既定のノイズ除外を無効化")
+    p_dag.add_argument("--prereq-re", dest="prereq_re", default=None, help="prerequisite とみなす正規表現")
+    p_dag.add_argument("--include-re", dest="include_re", default=None, help="一致する見出しだけ含める")
+    p_dag.add_argument("--exclude-re", dest="exclude_re", default=None, help="一致する見出しを除外")
+    p_dag.add_argument("--limit", type=int, default=0, help="ノード数の上限（0=無制限）")
+    p_dag.add_argument("--out", default=None, help="DAG 配列の書き出し先ファイル")
+    p_dag.add_argument("--state", default=None, help="この tutor_state.json の dag を置き換える")
+    p_dag.add_argument("--material-id", dest="material_id", default=None, help="--state と併用で material_id を設定")
+    p_dag.set_defaults(func=cmd_dag)
 
     args = parser.parse_args()
     return int(args.func(args))

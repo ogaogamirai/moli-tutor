@@ -122,6 +122,21 @@ AIチャット画面と横並びで表示する際、視認性を高めるため
 python -X utf8 tutor_cli.py headings "G:\path\to\textbook.html"
 ```
 
+### DAG 雛形の自動生成（`tutor_cli.py dag`）
+
+教材の見出しから **学習マップの雛形**を作ります。ツールは**構造だけ**（見出し→ノード＋`heading_index`）を作り、`prerequisite` / `concept` の意味づけは**下書き**です。意味は **AIが直してください**。
+
+```bat
+python -X utf8 tutor_cli.py dag "G:\path\to\textbook.html" --max-level 3
+python -X utf8 tutor_cli.py dag "https://..." --max-level 2 --out dag.json
+python -X utf8 tutor_cli.py dag "G:\...\index.html" --max-level 2 --state tutor_state.json --material-id tropical-math
+```
+
+- 見出しは **`h1`–`h6` と `role="heading"`** を **DOM順**に取得（bridge と同じ集合・順序）→ `heading_index` が一致します
+- `--max-level`（既定 3）／ `--include-h1` ／ `--skip-re` ／ `--no-skip` ／ `--prereq-re` ／ `--include-re` ／ `--exclude-re` ／ `--limit`
+- 既定の除外: 目次・内容・索引・参考文献など／ 既定の prerequisite 判定: はじめに・概要・前提・基礎・導入・Introduction…
+- `--state PATH` で `tutor_state.json` の `dag` を置換（`--out` は配列だけ書き出し）
+
 
 ### AI 操作の CLI（`tutor_cli.py act`）
 

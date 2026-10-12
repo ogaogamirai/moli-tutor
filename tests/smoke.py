@@ -30,6 +30,7 @@ sys.modules.setdefault("webview", types.ModuleType("webview"))
 
 import tutor_cockpit  # noqa: E402
 import tutor_http  # noqa: E402
+import tutor_cli  # noqa: E402
 
 FAILURES: list[str] = []
 
@@ -199,6 +200,38 @@ def test_act_cli() -> None:
         check("act: no action -> non-zero exit", run().returncode != 0)
 
 
+FIXTURE = ROOT / "tests" / "fixtures" / "sample_material.html"
+
+
+def test_heading_parser() -> None:
+    hs = tutor_cli._extract_headings_from_html(FIXTURE.read_text(encoding="utf-8"))
+    check("parser: 8 headings in DOM order", len(hs) == 8)
+    check("parser: h2 text + id", hs[1]["text"] == "はじめに" and hs[1]["id"] == "intro")
+    check("parser: nested tag text joined", hs[4]["text"] == "1.1 min の話" and hs[4]["level"] == 3)
+    check("parser: role=heading + aria-level", hs[5]["text"] == "1.2 ロール見出し" and hs[5]["level"] == 3)
+    check("parser: whitespace normalized", hs[7]["text"] == "余白 つき 見出し")
+    check("parser: ignores tags inside <script>", all("見出しではない" not in h["text"] for h in hs))
+
+
+def test_dag_cli() -> None:
+    def run(*extra: str) -> dict:
+        proc = subprocess.run(
+            [sys.executable, "-X", "utf8", str(ROOT / "tutor_cli.py"), "dag", str(FIXTURE), *extra],
+            capture_output=True,
+            text=True,
+        )
+        return json.loads(proc.stdout)
+
+    default = run()
+    idx = [n["heading_index"] for n in default["dag"]]
+    check("dag: default keeps 5 (skips h1/目次/h4)", idx == [1, 3, 4, 5, 7])
+    check("dag: はじめに -> prerequisite", default["dag"][0]["type"] == "prerequisite")
+    check("dag: heading text carried for anchor", default["dag"][0]["heading"] == "はじめに")
+
+    full = run("--include-h1", "--no-skip", "--max-level", "4")
+    check("dag: include-h1/no-skip/max4 -> 8", full["count"] == 8)
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -215,6 +248,8 @@ def main() -> int:
     test_bridge_anchor()
     test_load_state_bom()
     test_act_cli()
+    test_heading_parser()
+    test_dag_cli()
     test_example_state()
     print()
     if FAILURES:
