@@ -533,13 +533,21 @@ def _relativize_assets(out_dir: Path, text_path: Path) -> None:
     text_path.write_text(text, encoding="utf-8")
 
 
-def _moli_fetch_html(url: str) -> bytes:
-    moli = _resolve_moli()
-    proc = subprocess.run([moli, "fetch", url, "--dump", "html"], capture_output=True)
-    if proc.returncode != 0:
-        err = proc.stderr.decode("utf-8", "replace") or proc.stdout.decode("utf-8", "replace")
-        raise SystemExit("Moli fetch に失敗しました:\n" + err)
-    return proc.stdout
+def _fetch_html(url: str) -> bytes:
+    """URL を HTML として取得する（Moli があれば優先、無ければ urllib）。"""
+    try:
+        moli = _resolve_moli()
+    except SystemExit:
+        moli = None
+    if moli:
+        proc = subprocess.run([moli, "fetch", url, "--dump", "html"], capture_output=True)
+        if proc.returncode == 0 and proc.stdout.strip():
+            return proc.stdout
+    from urllib.request import Request, urlopen
+
+    req = Request(url, headers={"User-Agent": "moli-tutor/0.1"})
+    with urlopen(req, timeout=30) as resp:
+        return resp.read()
 
 
 def _docling_to_html(lib: Path, source: str) -> None:
@@ -586,7 +594,7 @@ def cmd_add_material(args: argparse.Namespace) -> int:
         _docling_to_html(lib, source)
         result["kind"] = "pdf"
     elif source.startswith(("http://", "https://")):
-        (lib / "index.html").write_bytes(_moli_fetch_html(source))
+        (lib / "index.html").write_bytes(_fetch_html(source))
         result["kind"] = "web"
     else:
         raise SystemExit(f"未対応の source です（.html / .pdf / http(s) のURL）: {source}")
