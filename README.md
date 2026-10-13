@@ -270,6 +270,7 @@ Agent は stdout の Markdown をそのまま読めます。
 
 - **正本**: `G:\マイドライブ\Tools\moli-tutor`（ドライブ同期）
 - **手順・運用・state の考え方**: [`docs/THREE_HOUSE_OPS_v01.md`](docs/THREE_HOUSE_OPS_v01.md)
+- **学習プロトコル（15分/1トピック）**: [`docs/LEARNING_PROTOCOL_v01.md`](docs/LEARNING_PROTOCOL_v01.md)
 - **R連続体 note 伴走**: [`docs/RRENZOKUTAI_DEMO.md`](docs/RRENZOKUTAI_DEMO.md)
 - **状態ファイルのひな形**: `tutor_state.example.json` → ローカルで `tutor_state.json`（Git 除外）
 
