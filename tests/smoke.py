@@ -123,6 +123,7 @@ def test_shell_hooks() -> None:
         "function refreshStatus",
         "clear_highlight",
         "heading_index",
+        "vendor/katex/katex.min.js",
         "board_visible",
         'setLayout(savedLayout || "left-only")',
         'setLayout("split", false);',

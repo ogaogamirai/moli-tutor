@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Moli-Tutor</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
+  <link rel="stylesheet" href="vendor/katex/katex.min.css" />
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; height: 100%; font-family: "Segoe UI", system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
@@ -265,7 +265,7 @@
     </div>
     <div id="right">
       <div id="right-head">
-        <h2>解説ボード <span class="shell-build" id="shell-build">b16</span></h2>
+        <h2>解説ボード <span class="shell-build" id="shell-build">b17</span></h2>
         <div class="layout-toggle-bar">
           <button class="layout-btn" id="btn-layout-left" onclick="setLayout('left-only')" title="教材のみ全幅 (Alt+1)">◀ 教材のみ</button>
           <button class="layout-btn active" id="btn-layout-split" onclick="setLayout('split')" title="2分割表示 (Alt+2)">50:50</button>
@@ -286,8 +286,8 @@
       <div id="status">tutor_state.json を監視中…</div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/katex/contrib/auto-render.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
   <script>
     let lastActionId = null;
