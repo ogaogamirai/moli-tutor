@@ -122,8 +122,9 @@ def main() -> None:
     parser.add_argument(
         "--material-dir",
         type=Path,
-        default=DEFAULT_MATERIAL,
-        help="教材を /material/ 以下で配信（スクロール連動に必須）",
+        action="append",
+        default=None,
+        help="教材を /material/ 以下で配信（複数指定可。既定: リポジトリの materials/ と tropical-math）",
     )
     parser.add_argument(
         "--browser",
@@ -136,8 +137,14 @@ def main() -> None:
     if not (STATIC / "shell.html").is_file():
         raise SystemExit(f"shell が見つかりません: {STATIC / 'shell.html'}")
 
-    material_dir = args.material_dir.resolve() if args.material_dir and args.material_dir.is_dir() else None
-    serve(STATIC, material_dir, args.host, args.port, state_callback=lambda: _load_state(state_path))
+    material_roots: list[Path] = []
+    library = ROOT / "materials"
+    if library.is_dir():
+        material_roots.append(library)
+    for d in args.material_dir or [DEFAULT_MATERIAL]:
+        if d and d.is_dir():
+            material_roots.append(d)
+    serve(STATIC, material_roots, args.host, args.port, state_callback=lambda: _load_state(state_path))
     shell_url = f"http://{args.host}:{args.port}/shell.html?b={SHELL_BUILD}&t={int(time.time())}"
 
     if args.browser:

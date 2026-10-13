@@ -26,10 +26,14 @@ def _safe_child(root: Path, rel: str) -> Path | None:
     return target
 
 
-def make_handler(static_root: Path, material_root: Path | None, state_callback=None) -> type[BaseHTTPRequestHandler]:
+def make_handler(static_root: Path, material_roots, state_callback=None) -> type[BaseHTTPRequestHandler]:
     import json
     static_root = static_root.resolve()
-    material_root = material_root.resolve() if material_root else None
+    if material_roots is None:
+        material_roots = []
+    elif isinstance(material_roots, (str, Path)):
+        material_roots = [material_roots]
+    roots = [Path(r).resolve() for r in material_roots if r]
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt: str, *args) -> None:
@@ -59,9 +63,14 @@ def make_handler(static_root: Path, material_root: Path | None, state_callback=N
                     self.send_error(500, str(e))
                 return
 
-            if material_root and path.startswith("/material/"):
+            if roots and path.startswith("/material/"):
                 rel = unquote(path[len("/material/") :])
-                file_path = _safe_child(material_root, rel)
+                file_path = None
+                for root in roots:
+                    cand = _safe_child(root, rel)
+                    if cand is not None and cand.is_file():
+                        file_path = cand
+                        break
             else:
                 rel = unquote(path.lstrip("/"))
                 file_path = _safe_child(static_root, rel)
@@ -86,12 +95,12 @@ def make_handler(static_root: Path, material_root: Path | None, state_callback=N
 
 def serve(
     static_root: Path,
-    material_root: Path | None,
+    material_roots,
     host: str,
     port: int,
     state_callback=None,
 ) -> ThreadingHTTPServer:
-    handler = make_handler(static_root, material_root, state_callback)
+    handler = make_handler(static_root, material_roots, state_callback)
     server = ThreadingHTTPServer((host, port), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -105,7 +114,7 @@ def main() -> None:
     parser.add_argument("--static", type=Path, required=True)
     parser.add_argument("--material", type=Path, default=None)
     args = parser.parse_args()
-    server = serve(args.static.resolve(), args.material.resolve() if args.material else None, args.host, args.port)
+    server = serve(args.static.resolve(), args.material, args.host, args.port)
     print(f"[moli-tutor] http://{args.host}:{args.port}/shell.html", flush=True)
     if args.material:
         print(f"[moli-tutor] material http://{args.host}:{args.port}/material/", flush=True)

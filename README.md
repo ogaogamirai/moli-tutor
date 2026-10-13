@@ -198,6 +198,26 @@ python -X utf8 tutor_cli.py act --url "http://..." --board-visible true
 
 既定は **教材のみ**（ボードは隠れています）。開くには右上の「解説を開く」または **Alt+2**。`tutor_state.json` の `board_visible` でも制御できます（`true`=開く / `false`=隠す）。`focus_board` や右ペインへの `scroll_viewport` を送ると自動で開きます。
 
+### 教材の入口（`add-material` / `open`）
+
+リンクや PDF を**教材化して左ペインに出す**までを1コマンドに寄せます。教材は **`materials/<material_id>/`** に置かれ、`/material/<material_id>/` として配信されます（**複数ルート対応**）。
+
+```bat
+REM Web → Moli で HTML 化 ／ PDF → Docling ／ HTML → コピー
+python -X utf8 tutor_cli.py add-material "https://example.com/article" --material-id article1
+python -X utf8 tutor_cli.py add-material "G:\path\book.pdf" --material-id book1
+python -X utf8 tutor_cli.py add-material "G:\path\page.html" --material-id page1
+
+REM 左ペインに出す（+ pack があれば DAG も読み込む）
+python -X utf8 tutor_cli.py open --material-id article1 --pack packs
+```
+
+- `add-material` の出力に `url`（`/material/<id>/index.html`）と次の一手が出ます
+- `open` は `tutor_state.json` の `url` と `material_id` を設定（`--pack` で DAG も）
+- 教材は `materials/`（git 除外）。`--materials DIR` で変更可
+
+> **外部URLの直接 iframe は操作できません**（cross-origin で bridge が入らない）。だから `add-material` で**同一オリジンに教材化**してから `open` します。
+
 ### 教材が出ないとき（404）
 
 左ペインが404のときは、**起動時の `--material-dir` と `tutor_state.json` の `url` が不一致**です。両者を同じ教材に合わせてください（左ペインにも案内が出ます）。

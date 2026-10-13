@@ -519,6 +519,106 @@ def cmd_load(args: argparse.Namespace) -> int:
     return 0
 
 
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+
+
+def _relativize_assets(out_dir: Path, text_path: Path) -> None:
+    text = text_path.read_text(encoding="utf-8", errors="replace")
+    for img in out_dir.rglob("*"):
+        if img.is_file() and img.suffix.lower() in _IMAGE_EXTS:
+            rel = img.relative_to(out_dir).as_posix()
+            abs_posix = img.resolve().as_posix()
+            for uri in ("file:///" + abs_posix, "file://" + abs_posix):
+                text = text.replace(uri, rel)
+    text_path.write_text(text, encoding="utf-8")
+
+
+def _moli_fetch_html(url: str) -> bytes:
+    moli = _resolve_moli()
+    proc = subprocess.run([moli, "fetch", url, "--dump", "html"], capture_output=True)
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", "replace") or proc.stdout.decode("utf-8", "replace")
+        raise SystemExit("Moli fetch に失敗しました:\n" + err)
+    return proc.stdout
+
+
+def _docling_to_html(lib: Path, source: str) -> None:
+    docling = _resolve_docling()
+    before = {p.name for p in lib.glob("*.html")}
+    cmd = [
+        docling, "convert", source,
+        "--output", str(lib),
+        "--to", "html", "--to", "md",
+        "--image-export-mode", "referenced",
+    ]
+    models_dir = Path(docling).resolve().parent.parent.parent / "models"
+    if models_dir.is_dir():
+        cmd.extend(["--artifacts-path", str(models_dir)])
+    proc = subprocess.run(cmd, capture_output=True)
+    if proc.returncode != 0:
+        err = proc.stderr.decode("utf-8", "replace") or proc.stdout.decode("utf-8", "replace")
+        raise SystemExit("Docling に失敗しました:\n" + err)
+    new = [p for p in sorted(lib.glob("*.html")) if p.name not in before]
+    produced = new[0] if new else (sorted(lib.glob("*.html")) or [None])[0]
+    if produced is None:
+        raise SystemExit("Docling が HTML を出力しませんでした（--to html 非対応の版かもしれません）")
+    if produced.name != "index.html":
+        produced.replace(lib / "index.html")
+    _relativize_assets(lib, lib / "index.html")
+
+
+def cmd_add_material(args: argparse.Namespace) -> int:
+    """URL / PDF / HTML を教材化し、materials/<material-id>/index.html に置く。"""
+    mid = args.material_id
+    lib = Path(args.materials).expanduser() / mid
+    lib.mkdir(parents=True, exist_ok=True)
+    source = args.source
+    p = Path(source).expanduser()
+    result: dict = {"material_id": mid, "dir": str(lib)}
+
+    if p.is_file() and p.suffix.lower() in (".html", ".htm"):
+        shutil.copyfile(p, lib / "index.html")
+        result["kind"] = "html"
+    elif p.is_file() and p.suffix.lower() == ".pdf":
+        _docling_to_html(lib, str(p.resolve()))
+        result["kind"] = "pdf"
+    elif source.startswith(("http://", "https://")) and source.lower().endswith(".pdf"):
+        _docling_to_html(lib, source)
+        result["kind"] = "pdf"
+    elif source.startswith(("http://", "https://")):
+        (lib / "index.html").write_bytes(_moli_fetch_html(source))
+        result["kind"] = "web"
+    else:
+        raise SystemExit(f"未対応の source です（.html / .pdf / http(s) のURL）: {source}")
+
+    result["file"] = str(lib / "index.html")
+    result["url"] = f"/material/{mid}/index.html"
+    result["next"] = f"python -X utf8 tutor_cli.py open --material-id {mid}"
+    sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
+    return 0
+
+
+def cmd_open(args: argparse.Namespace) -> int:
+    """教材を左ペインに設定する（materials/<id>/<file> を開く）。"""
+    sp = Path(args.state).expanduser()
+    state = _read_state(sp)
+    url = f"http://127.0.0.1:{args.port}/material/{args.material_id}/{args.file}"
+    state["url"] = url
+    state["page_url"] = url
+    state["material_id"] = args.material_id
+    out = {"state": str(sp), "material_id": args.material_id, "url": url}
+    if args.pack:
+        dag_path = Path(args.pack).expanduser() / args.material_id / "dag.json"
+        if dag_path.is_file():
+            state["dag"] = json.loads(dag_path.read_text(encoding="utf-8-sig"))
+            out["pack"] = str(dag_path)
+    sp.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    sys.stdout.write(json.dumps(out, ensure_ascii=False, indent=2))
+    sys.stdout.write("\n")
+    return 0
+
+
 def cmd_act(args: argparse.Namespace) -> int:
     """tutor_state.json に action_request を1つ追記する（id は既存 +1）。
 
@@ -692,6 +792,20 @@ def main() -> int:
     p_load.add_argument("--state", default="tutor_state.json", help="対象の tutor_state.json")
     p_load.add_argument("--pack", default="packs", help="pack のベースディレクトリ（既定 packs）")
     p_load.set_defaults(func=cmd_load)
+
+    p_add = sub.add_parser("add-material", help="URL/PDF/HTML を教材化して materials/<id>/ に置く")
+    p_add.add_argument("source", help="HTML/PDF のパス、または http(s) URL")
+    p_add.add_argument("--material-id", dest="material_id", required=True)
+    p_add.add_argument("--materials", default="materials", help="教材ライブラリのディレクトリ（既定 materials）")
+    p_add.set_defaults(func=cmd_add_material)
+
+    p_open = sub.add_parser("open", help="教材を左ペインに設定（materials/<id>/index.html）")
+    p_open.add_argument("--material-id", dest="material_id", required=True)
+    p_open.add_argument("--state", default="tutor_state.json", help="対象の tutor_state.json")
+    p_open.add_argument("--file", default="index.html", help="materials/<id>/ 内のファイル（既定 index.html）")
+    p_open.add_argument("--port", type=int, default=8777)
+    p_open.add_argument("--pack", default=None, help="指定時は packs/<id>/dag.json も読み込む")
+    p_open.set_defaults(func=cmd_open)
 
     args = parser.parse_args()
     return int(args.func(args))

@@ -279,6 +279,53 @@ def test_status_load() -> None:
         check("status --json: progress total", json.loads(sj.stdout)["progress"]["total"] == 5)
 
 
+def test_multi_root() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        base = Path(d)
+        r1 = base / "r1"
+        r2 = base / "r2"
+        r1.mkdir()
+        r2.mkdir()
+        (r1 / "a.html").write_text("A", encoding="utf-8")
+        (r2 / "b.html").write_text("B", encoding="utf-8")
+        server = tutor_http.serve(ROOT / "static", [r1, r2], "127.0.0.1", 0, state_callback=lambda: {})
+        try:
+            port = server.server_address[1]
+
+            def get(path: str) -> str:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5) as r:
+                    return r.read().decode()
+
+            check("multi-root: file served from root 1", get("/material/a.html") == "A")
+            check("multi-root: file served from root 2", get("/material/b.html") == "B")
+        finally:
+            server.shutdown()
+
+
+def test_add_open() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        base = Path(d)
+        mats = base / "materials"
+        state = base / "state.json"
+
+        def cli(*a: str) -> subprocess.CompletedProcess:
+            return subprocess.run(
+                [sys.executable, "-X", "utf8", str(ROOT / "tutor_cli.py"), *a],
+                capture_output=True,
+                text=True,
+            )
+
+        cli("add-material", str(FIXTURE), "--material-id", "demo", "--materials", str(mats))
+        check("add-material: html copied to index.html", (mats / "demo" / "index.html").is_file())
+
+        cli("open", "--material-id", "demo", "--state", str(state))
+        st = json.loads(state.read_text(encoding="utf-8"))
+        check(
+            "open: url points at the material",
+            st["url"].endswith("/material/demo/index.html") and st["material_id"] == "demo",
+        )
+
+
 def test_example_state() -> None:
     ex = json.loads((ROOT / "tutor_state.example.json").read_text(encoding="utf-8"))
     check("example: valid json with dag", isinstance(ex.get("dag"), list) and len(ex["dag"]) > 0)
@@ -299,6 +346,8 @@ def main() -> int:
     test_dag_cli()
     test_summarize()
     test_status_load()
+    test_multi_root()
+    test_add_open()
     test_example_state()
     print()
     if FAILURES:
