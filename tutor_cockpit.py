@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Moli-Tutor Phase 1–2 — Aether型コックピット + AI Tutor 状態連動。"""
+"""Moli-Tutor Phase 1–2 — サーバー無しコックピット（pywebview + ローカルファイル）。
+
+- ローカルファイルを file:// で開く（HTTP サーバー・待受ポート無し）。
+- 教材 HTML と bridge は Python が読み、js_api 経由で shell に渡す（shell は fetch しない）。
+- 状態は tutor_state.json を監視し evaluate_js で反映（live 更新）。
+"""
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import threading
 import time
 from pathlib import Path
+from urllib.parse import unquote
 
 import webview
-
-from tutor_http import serve
 
 import subprocess
 import hashlib
@@ -19,8 +25,18 @@ import html
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
 DEFAULT_STATE = ROOT / "tutor_state.json"
-SHELL_BUILD = "17"
-DEFAULT_MATERIAL = Path(r"G:\マイドライブ\Projects\Teaching-materials\tropical-math")
+SHELL_HTML = STATIC / "shell.html"
+BRIDGE_JS = STATIC / "material_bridge.js"
+SHELL_BUILD = "18"
+
+# 教材のルート（この下に <material_id>/ が並ぶ）
+MATERIAL_ROOTS = [
+    ROOT / "materials",
+    ROOT / "demo-material",
+    Path(r"G:\マイドライブ\Projects\Teaching-materials"),
+]
+DEFAULT_MATERIAL_ID = "tropical-math"
+
 D2_EXE = ROOT.parent / "d2" / "d2.exe"
 
 _D2_CACHE: dict[str, str] = {}
@@ -81,13 +97,95 @@ def _preprocess_state(state: dict) -> dict:
 
 def _load_state(path: Path) -> dict:
     text = path.read_text(encoding="utf-8-sig")
-    raw_state = json.loads(text)
-    return _preprocess_state(raw_state)
+    return _preprocess_state(json.loads(text))
 
 
-def _state_watcher(window: webview.Window, state_path: Path, interval: float) -> None:
+def read_text(path: Path) -> str:
+    data = path.read_bytes()
+    for enc in ("utf-8-sig", "utf-8", "cp932"):
+        try:
+            return data.decode(enc)
+        except Exception:
+            pass
+    return data.decode("utf-8", "replace")
+
+
+def to_file_url(path: Path) -> str:
+    return "file:///" + path.resolve().as_posix()
+
+
+def parse_material_url(url: str) -> tuple[str | None, str]:
+    """URL/パスから (material_id, file) を取り出す。"""
+    u = (url or "").replace("\\", "/")
+    m = re.search(r"/material/([^/]+)/(.+)$", u)
+    if m:
+        return unquote(m.group(1)), unquote(m.group(2))
+    m = re.search(r"/materials/([^/]+)/(.+)$", u)
+    if m:
+        return unquote(m.group(1)), unquote(m.group(2))
+    p = Path(u)
+    if p.is_file():
+        return p.parent.name, p.name
+    return None, "index.html"
+
+
+class Api:
+    def __init__(self, state_path: Path, roots: list[Path]):
+        self.state_path = state_path
+        self.roots = [r for r in roots if r]
+        self._result: dict | None = None
+        self.done = threading.Event()
+
+    # --- shell へ渡す読み取り API ---
+    def get_bridge(self) -> str:
+        return read_text(BRIDGE_JS)
+
+    def get_state(self) -> dict:
+        try:
+            return _load_state(self.state_path)
+        except Exception:
+            return {}
+
+    def get_material(self, material_id: str | None = None, file: str = "index.html") -> dict:
+        state = self.get_state()
+        mid = material_id or state.get("material_id") or DEFAULT_MATERIAL_ID
+        fname = file or "index.html"
+        for root in self.roots:
+            p = root / mid / fname
+            if p.is_file():
+                return {
+                    "ok": True,
+                    "material_id": mid,
+                    "file": fname,
+                    "html": read_text(p),
+                    "base": to_file_url(p.parent) + "/",
+                    "path": str(p),
+                    "url": f"/material/{mid}/{fname}",
+                }
+        return {"ok": False, "material_id": mid, "file": fname, "error": "material_not_found"}
+
+    def open_material_url(self, url: str) -> dict:
+        mid, fname = parse_material_url(url)
+        return self.get_material(mid, fname)
+
+    # --- 自己テスト用 ---
+    def report(self, data) -> bool:
+        self._result = data
+        self.done.set()
+        return True
+
+
+def _push_material(window, api: Api, material_id: str | None) -> None:
+    m = api.get_material(material_id)
+    if m.get("ok"):
+        payload = json.dumps(m, ensure_ascii=False)
+        window.evaluate_js(f"window.__applyMaterial({payload})")
+
+
+def _state_watcher(window, api: Api, state_path: Path, interval: float) -> None:
     last_mtime: float | None = None
     last_payload: str | None = None
+    last_material: str | None = None
     while True:
         try:
             if not state_path.is_file():
@@ -103,96 +201,105 @@ def _state_watcher(window: webview.Window, state_path: Path, interval: float) ->
             if payload != last_payload:
                 last_payload = payload
                 window.evaluate_js(f"window.applyState({payload})")
+            mid = state.get("material_id")
+            if mid and mid != last_material:
+                last_material = mid
+                _push_material(window, api, mid)
         except (json.JSONDecodeError, OSError):
             pass
         time.sleep(interval)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Moli-Tutor コックピット")
-    parser.add_argument(
-        "--state",
-        type=Path,
-        default=DEFAULT_STATE,
-        help="監視する tutor_state.json",
-    )
-    parser.add_argument("--poll-ms", type=int, default=250, help="状態ファイルのポーリング間隔")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8777, help="shell + 教材の同一オリジン HTTP ポート")
-    parser.add_argument(
-        "--material-dir",
-        type=Path,
-        action="append",
-        default=None,
-        help="教材を /material/ 以下で配信（複数指定可。既定: リポジトリの materials/ と tropical-math）",
-    )
-    parser.add_argument(
-        "--browser",
-        action="store_true",
-        help="pywebview GUI ではなく通常ブラウザで開く",
-    )
-    args = parser.parse_args()
-    state_path = args.state.resolve()
+def run(state_path: Path, poll_ms: int, selftest: bool) -> int:
+    api = Api(state_path, MATERIAL_ROOTS)
 
-    if not (STATIC / "shell.html").is_file():
-        raise SystemExit(f"shell が見つかりません: {STATIC / 'shell.html'}")
+    window = webview.create_window(
+        "Moli-Tutor",
+        url=str(SHELL_HTML),
+        js_api=api,
+        width=1400,
+        height=900,
+        resizable=True,
+    )
 
-    material_roots: list[Path] = []
-    library = ROOT / "materials"
-    if library.is_dir():
-        material_roots.append(library)
-    for d in args.material_dir or [DEFAULT_MATERIAL]:
-        if d and d.is_dir():
-            material_roots.append(d)
-    serve(STATIC, material_roots, args.host, args.port, state_callback=lambda: _load_state(state_path))
-    shell_url = f"http://{args.host}:{args.port}/shell.html?b={SHELL_BUILD}&t={int(time.time())}"
-
-    if args.browser:
-        import webbrowser
-        print(f"[moli-tutor] Opening in browser: {shell_url}", flush=True)
-        webbrowser.open(shell_url)
+    def on_loaded() -> None:
+        time.sleep(1.0)
         try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            return
+            state = _load_state(state_path)
+            window.evaluate_js(f"window.applyState({json.dumps(state, ensure_ascii=False)})")
+            _push_material(window, api, state.get("material_id"))
+        except (json.JSONDecodeError, OSError):
+            pass
+        threading.Thread(
+            target=_state_watcher,
+            args=(window, api, state_path, poll_ms / 1000.0),
+            daemon=True,
+        ).start()
+        if selftest:
+            threading.Thread(target=_selftest, args=(window, api), daemon=True).start()
 
+    window.events.loaded += on_loaded
+    webview.start(gui="edgechromium")
+    return 0
+
+
+SELFTEST_JS = r"""
+(function(){
+  var out={};
+  try{
+    var f = document.getElementById('material');
+    var doc = f.contentDocument, win = f.contentWindow;
+    out.sameOrigin = !!(doc && doc.body);
+    out.materialUrl = f.getAttribute('src') ? f.getAttribute('src') : '(srcdoc)';
+    out.usedSrcdoc = !!f.srcdoc;
+    var api = win && win.moliTutor;
+    out.hasApi = !!api;
+    if (api) {
+      out.headings = api.collectHeadings().length;
+      out.highlight = api.highlightAndScroll('', { heading_index: 5, behavior: 'auto' });
+      out.scroll = api.scrollViewport({ y_ratio: 0.5, behavior: 'auto' });
+      out.image = api.highlightImage(1, { behavior: 'auto' });
+      var imgs = doc.querySelectorAll('img');
+      out.imgCount = imgs.length;
+      out.lightbox = (function(){ var i=doc.querySelector('img'); if(!i) return null; i.click(); var lb=!!doc.querySelector('.moli-tutor-lightbox'); var c=doc.querySelector('.moli-tutor-lightbox-close'); if(c) c.click(); return {opened:lb, closed: !doc.querySelector('.moli-tutor-lightbox')}; })();
+    }
+    out.dag = (window.__lastDagCount || 0);
+    out.ok = out.sameOrigin && out.hasApi;
+  }catch(e){ out.error = String(e); out.ok = false; }
+  window.pywebview.api.report(out);
+  return true;
+})()
+"""
+
+
+def _selftest(window, api: Api) -> None:
+    time.sleep(3.0)
     try:
-        window = webview.create_window(
-            "Moli-Tutor",
-            url=shell_url,
-            width=1400,
-            height=900,
-            resizable=True,
-        )
+        window.evaluate_js(SELFTEST_JS)
+    except Exception as exc:
+        window.evaluate_js("window.pywebview.api.report({ok:false,error:%r})" % ("selftest_failed:" + str(exc),))
+    api.done.wait(timeout=10)
+    out = os.path.join(str(ROOT), "_spike", "serverless_selftest.json")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as fh:
+        json.dump(api._result or {"ok": False, "error": "no_result"}, fh, ensure_ascii=False, indent=2)
+    try:
+        window.destroy()
+    except Exception:
+        pass
+    os._exit(0)
 
-        def on_loaded() -> None:
-            time.sleep(1.2)
-            try:
-                state = _load_state(state_path)
-                payload = json.dumps(state, ensure_ascii=False)
-                window.evaluate_js(f"window.applyState({payload})")
-            except (json.JSONDecodeError, OSError):
-                pass
-            t = threading.Thread(
-                target=_state_watcher,
-                args=(window, state_path, args.poll_ms / 1000.0),
-                daemon=True,
-            )
-            t.start()
 
-        window.events.loaded += on_loaded
-        webview.start(gui="edgechromium")
-    except Exception as e:
-        import webbrowser
-        print(f"[moli-tutor] GUI launch failed ({e}), falling back to browser...", flush=True)
-        webbrowser.open(shell_url)
-        try:
-            while True:
-                time.sleep(1)
-        except KeyboardInterrupt:
-            return
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Moli-Tutor コックピット（サーバー無し）")
+    parser.add_argument("--state", type=Path, default=DEFAULT_STATE, help="監視する tutor_state.json")
+    parser.add_argument("--poll-ms", type=int, default=250, help="状態ファイルのポーリング間隔")
+    parser.add_argument("--selftest", action="store_true", help="読み込み後に DOM 自己テストして終了")
+    args = parser.parse_args()
+    if not SHELL_HTML.is_file():
+        raise SystemExit(f"shell が見つかりません: {SHELL_HTML}")
+    return run(args.state.resolve(), args.poll_ms, args.selftest)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

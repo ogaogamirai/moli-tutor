@@ -47,6 +47,7 @@
         el.style.padding = "";
         el.style.borderRadius = "";
         el.style.boxShadow = "";
+        el.style.outline = "";
       }
     });
     const legacy = document.getElementById("ai-tutor-highlight-target");
@@ -207,13 +208,99 @@
     return { success: false, reason: "no_id" };
   }
 
+  function highlightImage(index, options) {
+    const imgs = document.querySelectorAll("img");
+    const el = imgs[index];
+    if (!el) return { success: false, reason: "image_index_oob", count: imgs.length };
+    clearAllHighlights();
+    el.classList.add(HL_CLASS);
+    el.style.outline = "3px solid #ea580c";
+    el.style.boxShadow = "0 0 0 6px #facc15, 0 0 28px rgba(250, 204, 21, 0.9)";
+    el.style.borderRadius = "6px";
+    el.scrollIntoView({ behavior: behaviorOf(options), block: "center" });
+    return { success: true, method: "image", index, count: imgs.length };
+  }
+
+  // --- 画像ライトボックス（クリックで拡大・Esc/×/背景クリックで戻る）---
+  let lightbox = null;
+
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.remove();
+    lightbox = null;
+    document.removeEventListener("keydown", onLightboxKey);
+  }
+
+  function onLightboxKey(e) {
+    if (e.key === "Escape") closeLightbox();
+  }
+
+  function openLightbox(src, alt) {
+    if (!src) return { success: false, reason: "no_src" };
+    closeLightbox();
+    lightbox = document.createElement("div");
+    lightbox.className = "moli-tutor-lightbox";
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = alt || "";
+    const close = document.createElement("button");
+    close.className = "moli-tutor-lightbox-close";
+    close.textContent = "✕ 閉じる (Esc)";
+    lightbox.append(img, close);
+    lightbox.addEventListener("click", (e) => {
+      if (e.target === lightbox) closeLightbox();
+    });
+    close.addEventListener("click", closeLightbox);
+    (document.body || document.documentElement).appendChild(lightbox);
+    document.addEventListener("keydown", onLightboxKey);
+    return { success: true, src };
+  }
+
+  (function injectLightboxStyle() {
+    if (document.getElementById("moli-tutor-lb-style")) return;
+    const st = document.createElement("style");
+    st.id = "moli-tutor-lb-style";
+    st.textContent =
+      ".moli-tutor-lightbox{position:fixed;inset:0;z-index:2147483000;" +
+      "background:rgba(15,23,42,.93);display:flex;align-items:center;justify-content:center;" +
+      "padding:24px;cursor:zoom-out}" +
+      ".moli-tutor-lightbox img{max-width:96%;max-height:92%;background:#fff;" +
+      "box-shadow:0 10px 40px rgba(0,0,0,.6)}" +
+      ".moli-tutor-lightbox-close{position:fixed;top:14px;right:18px;cursor:pointer;" +
+      "background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:8px;" +
+      "padding:8px 12px;font-size:14px;z-index:2147483001}";
+    (document.head || document.documentElement).appendChild(st);
+  })();
+
+  // 画像（または画像を包むリンク）クリックを横取りして拡大表示。ナビゲーションで教材を失わない。
+  if (typeof document.addEventListener === "function") {
+    document.addEventListener(
+      "click",
+      (e) => {
+        const t = e.target;
+        if (!t || !t.tagName) return;
+        let img = null;
+        if (t.tagName === "IMG") img = t;
+        else if (t.tagName === "A") img = t.querySelector("img");
+        if (!img) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openLightbox(img.currentSrc || img.src, img.alt);
+      },
+      true
+    );
+  }
+
   const api = {
     highlightAndScroll,
     scrollViewport,
     scrollToHash,
     scrollToHeadingIndex,
     collectHeadings,
-    clearAllHighlights
+    clearAllHighlights,
+    highlightImage,
+    openImage: openLightbox,
+    closeLightbox
   };
   window.moliTutor = api;
 
@@ -236,6 +323,8 @@
     } else if (data.type === "clear_highlight") {
       clearAllHighlights();
       result = { success: true };
+    } else if (data.type === "highlight_image" && data.index != null) {
+      result = highlightImage(Number(data.index), data);
     }
 
     if (event.source && event.source.postMessage) {

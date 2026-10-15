@@ -124,6 +124,9 @@
       border: 1px solid transparent;
     }
     .dag-node:hover { background: #1e293b; }
+    .dag-node-fig { flex: 0 0 auto; font-size: 0.72rem; cursor: pointer; background: rgba(250, 204, 21, 0.15); border: 1px solid #a16207; border-radius: 999px; padding: 1px 6px; }
+    .dag-node-caption { font-size: 0.72rem; line-height: 1.6; color: #cbd5e1; background: #111827; border-left: 3px solid #facc15; padding: 6px 9px; margin: 2px 0 4px 18px; white-space: pre-wrap; border-radius: 4px; }
+    .dag-node-fig:hover { filter: brightness(1.25); }
     .dag-node.active { background: rgba(30, 58, 138, 0.25); border-color: #3b82f6; }
     .dag-node.completed { color: #64748b; }
     .dag-node.completed .dag-node-label { text-decoration: line-through; }
@@ -313,6 +316,7 @@
     }
 
     let bridgeInlinePromise = null;
+    let bridgeText = "";
 
     function injectMaterialBridge(frame) {
       try {
@@ -320,6 +324,14 @@
         const win = frame.contentWindow;
         if (!doc || !win) return Promise.resolve(false);
         if (win.moliTutor) return Promise.resolve(true);
+        if (bridgeText) {
+          const s = doc.createElement("script");
+          s.id = "moli-tutor-bridge-loaded";
+          s.textContent = bridgeText;
+          (doc.head || doc.documentElement).appendChild(s);
+          return Promise.resolve(true);
+        }
+        // フォールバック（http 配信時）
         if (!bridgeInlinePromise) {
           bridgeInlinePromise = fetch(new URL("material_bridge.js?v=3", window.location.href).href)
             .then((r) => r.text())
@@ -360,6 +372,8 @@
       } else if (type === "clear_highlight") {
         api.clearAllHighlights();
         result = { success: true };
+      } else if (type === "highlight_image" && action.index != null) {
+        result = api.highlightImage(action.index, action);
       }
       if (result && result.success && action.id != null) {
         lastActionId = action.id;
@@ -414,9 +428,17 @@
     }
 
     function setMaterialUrl(url) {
-      const frame = getMaterialFrame();
-      if (!url || !frame) return;
+      if (!url) return;
       pendingMaterialUrl = url;
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.open_material_url) {
+        window.pywebview.api.open_material_url(url).then((m) => {
+          if (m && m.ok) window.__applyMaterial(m);
+        });
+        return;
+      }
+      // フォールバック（http 配信時）
+      const frame = getMaterialFrame();
+      if (!frame) return;
       const cur = frame.getAttribute("src");
       if (cur !== url) {
         frame.onload = function () {
@@ -430,6 +452,28 @@
         checkMaterialError(frame);
       }
     }
+
+    let lastAppliedKey = "";
+    window.__applyMaterial = function (m) {
+      const frame = getMaterialFrame();
+      if (!frame || !m || !m.html) return;
+      const key = (m.material_id || "") + "/" + (m.file || "index.html");
+      if (key === lastAppliedKey) return;
+      lastAppliedKey = key;
+      pendingMaterialUrl = m.url || pendingMaterialUrl;
+      let doc = m.html;
+      if (m.base) {
+        const tag = '<base href="' + m.base + '">';
+        doc = /<head[^>]*>/i.test(doc) ? doc.replace(/<head([^>]*)>/i, "<head$1>" + tag) : tag + doc;
+      }
+      frame.onload = function () {
+        bridgeInlinePromise = null;
+        onMaterialFrameReady();
+        checkMaterialError(frame);
+      };
+      frame.removeAttribute("src");
+      frame.srcdoc = doc;
+    };
 
     function scrollRightPane(opts) {
       const el = getBoardScrollContainer();
@@ -459,6 +503,7 @@
         target_text: action.target_text,
         hash: action.hash,
         heading_index: action.heading_index,
+        index: action.index,
         match: action.match,
         occurrence: action.occurrence,
         y_ratio: action.y_ratio,
@@ -525,11 +570,12 @@
       if (
         (type === "scroll_to" && (action.target_text || action.heading_index != null)) ||
         (type === "scroll_hash" && action.hash) ||
+        (type === "highlight_image" && action.index != null) ||
         (type === "scroll_viewport" && pane !== "right")
       ) {
         queuedAction = action;
         const frame = getMaterialFrame();
-        if (frame && frame.getAttribute("src")) {
+        if (frame) {
           startActionRetries(action);
         }
         return;
@@ -709,12 +755,18 @@
 
     let lastDagKey = null;
 
-    function renderDagMap(dag) {
+    function renderDagMap(dag, media) {
       const wrap = document.getElementById("dag-map");
       const list = document.getElementById("dag-list");
       if (!wrap || !list) return;
       const nodes = Array.isArray(dag) ? dag : [];
-      const key = JSON.stringify(nodes);
+      const mediaList = Array.isArray(media) ? media : [];
+      const mediaByHeading = {};
+      mediaList.forEach((m) => {
+        const k = m.after_heading_index;
+        (mediaByHeading[k] = mediaByHeading[k] || []).push(m);
+      });
+      const key = JSON.stringify(nodes) + "|" + JSON.stringify(mediaList);
       if (key === lastDagKey) return;
       lastDagKey = key;
       if (!nodes.length) {
@@ -740,7 +792,25 @@
         const typeEl = document.createElement("span");
         typeEl.className = "dag-node-type";
         typeEl.textContent = node.type === "prerequisite" ? "前提" : "概念";
-        item.append(statusEl, label, typeEl);
+        const figs = mediaByHeading[node.heading_index] || [];
+        if (figs.length) {
+          const figEl = document.createElement("span");
+          figEl.className = "dag-node-fig";
+          figEl.textContent = "📷" + (figs.length > 1 ? figs.length : "");
+          figEl.title = figs.map((f) => f.ai_caption || f.alt || f.src || "画像").join("\n\n");
+          figEl.addEventListener("click", (e) => {
+            e.stopPropagation();
+            if (figEl._cap) { figEl._cap.remove(); figEl._cap = null; return; }
+            const cap = document.createElement("div");
+            cap.className = "dag-node-caption";
+            cap.textContent = figs.map((f) => f.ai_caption || f.alt || f.src || "画像").join("\n\n");
+            item.insertAdjacentElement("afterend", cap);
+            figEl._cap = cap;
+          });
+          item.append(statusEl, label, figEl, typeEl);
+        } else {
+          item.append(statusEl, label, typeEl);
+        }
         item.addEventListener("click", () => jumpToDagNode(node));
         list.appendChild(item);
       });
@@ -770,8 +840,7 @@
       const action = dagNodeToAction(node);
       if (!action) return;
       queuedAction = action;
-      const frame = getMaterialFrame();
-      if (frame && frame.getAttribute("src")) startActionRetries(action);
+      startActionRetries(action);
     }
 
     function renderBoard(state) {
@@ -855,7 +924,7 @@
           frame.className = "board-iframe";
           frame.setAttribute("title", sec.title || "visual");
           frame.setAttribute("loading", "lazy");
-          frame.src = src.startsWith("http") ? src : new URL(src.replace(/^\//, ""), window.location.origin + "/").href;
+          frame.src = (src.startsWith("http") || src.startsWith("file:")) ? src : new URL(src.replace(/^\//, ""), window.location.href).href;
           body.appendChild(frame);
         } else body.textContent = String(content);
       });
@@ -866,6 +935,7 @@
 
     function describeAction(action) {
       if (!action) return "";
+      if (action.type === "highlight_image" && action.index != null) return "図 #" + action.index;
       if (action.heading_index != null) return "見出し #" + action.heading_index;
       if (action.heading) return action.heading;
       if (action.target_text) return action.target_text;
@@ -895,7 +965,7 @@
       if (pageUrl) setMaterialUrl(pageUrl);
       if (state.board_visible === true) setLayout("split", false);
       else if (state.board_visible === false) setLayout("left-only", false);
-      renderDagMap(state.dag);
+      renderDagMap(state.dag, state.media);
       renderBoard(state);
       if (state.latest_message) setLatestMessage(state.latest_message);
       if (state.board_focus != null) {
@@ -913,21 +983,16 @@
       refreshStatus();
     };
 
-    // ブラウザ直接表示用（pywebview外でも状態変更を自動反映）
-    let lastBrowserStateJson = "";
-    setInterval(async () => {
+    // サーバー無し起動: bridge と教材を Python(js_api) から受け取る
+    window.addEventListener("pywebviewready", async () => {
       try {
-        const res = await fetch("/api/state?t=" + Date.now());
-        if (res.ok) {
-          const text = await res.text();
-          if (text !== lastBrowserStateJson) {
-            lastBrowserStateJson = text;
-            const state = JSON.parse(text);
-            window.applyState(state);
-          }
-        }
+        bridgeText = await window.pywebview.api.get_bridge();
+        const state = await window.pywebview.api.get_state();
+        if (state) window.applyState(state);
+        const m = await window.pywebview.api.get_material();
+        if (m && m.ok) window.__applyMaterial(m);
       } catch (_) {}
-    }, 400);
+    });
   </script>
 </body>
 </html>
