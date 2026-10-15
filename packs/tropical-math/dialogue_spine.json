@@ -1,0 +1,552 @@
+[
+  {
+    "node_id": "KC_tropical-math_2",
+    "heading_index": 2,
+    "name": "🧭 はじめに：日常のインフラから、現代数学の最前線へ",
+    "type": "prerequisite",
+    "depth_start": 0,
+    "goal": "私たちが毎日の通勤や移動で何気なく利用している電車の路線図。スマートフォンで乗り換え案内アプリを開けば、一瞬で「最短ルート」が表示されます。",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "私たちが毎日の通勤や移動で何気なく利用している電車の路線図。スマートフォンで乗り換え案内アプリを開けば、一瞬で「最短ルート」が表示されます。"
+      },
+      {
+        "beat": "act",
+        "heading_index": 2
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🧭 はじめに：日常のインフラから、現代数学の最前線へ」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_3"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🧭 はじめに：日常のインフラから、現代数学の最前線へ」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": true,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_3",
+    "heading_index": 3,
+    "name": "🚉 第1章：電車の乗り換えと「総当たり探索」の限界",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "まずは、東京の中心部で山手線・中央線・総武線が交差する、親しみやすい4つの駅をモデルケースとして考えます。",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "まずは、東京の中心部で山手線・中央線・総武線が交差する、親しみやすい4つの駅をモデルケースとして考えます。"
+      },
+      {
+        "beat": "act",
+        "heading_index": 3
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🚉 第1章：電車の乗り換えと「総当たり探索」の限界」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_9"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🚉 第1章：電車の乗り換えと「総当たり探索」の限界」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_9",
+    "heading_index": 9,
+    "name": "🌴 第2章：発想の転換 —「トロピカル代数」という新体系",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "私たちが最短経路を計算するとき、実際に行っている演算は突き詰めると以下の 2つの操作 に集約されます。 経路を延長するとき： 「所要時間を足し合わせる」 （加算） 複数の経路が合流するとき： 「より短い（小さい）方を選択する」 （最小値選択…",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "私たちが最短経路を計算するとき、実際に行っている演算は突き詰めると以下の 2つの操作 に集約されます。 経路を延長するとき： 「所要時間を足し合わせる」 （加算） 複数の経路が合流するとき： 「より短い（小さい）方を選択する」 （最小値選択…"
+      },
+      {
+        "beat": "act",
+        "heading_index": 9
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🌴 第2章：発想の転換 —「トロピカル代数」という新体系」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_22"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🌴 第2章：発想の転換 —「トロピカル代数」という新体系」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_22",
+    "heading_index": 22,
+    "name": "📊 第3章：行列の積による「最短路」の自動算出",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "「行列（Matrix：マトリックス）」と聞くと難しそうですが、実態は私たちが普段見慣れている 「数字をマス目に並べた表（テーブル）」 そのものです。 数学では、数字を縦横に並べて大きな丸カッコ $\\begin{pmatrix} \\dots …",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "「行列（Matrix：マトリックス）」と聞くと難しそうですが、実態は私たちが普段見慣れている 「数字をマス目に並べた表（テーブル）」 そのものです。 数学では、数字を縦横に並べて大きな丸カッコ $\\begin{pmatrix} \\dots …"
+      },
+      {
+        "beat": "act",
+        "heading_index": 22
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「📊 第3章：行列の積による「最短路」の自動算出」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_33"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「📊 第3章：行列の積による「最短路」の自動算出」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_33",
+    "heading_index": 33,
+    "name": "🌀 第4章：最長経路探索の罠と無限ループの発生",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "最短経路がこれほど鮮やかに解決されるのを目の当たりにすると、私たちは自然と次なる問いへと進みたくなるものです。 「最短が代数で解けたのなら、最も遠回りする『最長経路』も同様に解けるのではないか？",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "最短経路がこれほど鮮やかに解決されるのを目の当たりにすると、私たちは自然と次なる問いへと進みたくなるものです。 「最短が代数で解けたのなら、最も遠回りする『最長経路』も同様に解けるのではないか？"
+      },
+      {
+        "beat": "act",
+        "heading_index": 33
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🌀 第4章：最長経路探索の罠と無限ループの発生」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_38"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🌀 第4章：最長経路探索の罠と無限ループの発生」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_38",
+    "heading_index": 38,
+    "name": "🌲 第5章：境界線の魔法 — 湊真一教授のZDDフロンティア法",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "グラフの中から特定の条件を満たす経路や部分構造（一筆書きルート、最小全域木、独立点集合など）を探し出そうとするとき、私たちは常に 「組み合わせ爆発」 という巨大な壁に直面します。 エッジ（辺）の総数を $M$ 本とすると、エッジを選ぶか選ば…",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "グラフの中から特定の条件を満たす経路や部分構造（一筆書きルート、最小全域木、独立点集合など）を探し出そうとするとき、私たちは常に 「組み合わせ爆発」 という巨大な壁に直面します。 エッジ（辺）の総数を $M$ 本とすると、エッジを選ぶか選ば…"
+      },
+      {
+        "beat": "act",
+        "heading_index": 38
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🌲 第5章：境界線の魔法 — 湊真一教授のZDDフロンティア法」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_57"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🌲 第5章：境界線の魔法 — 湊真一教授のZDDフロンティア法」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_57",
+    "heading_index": 57,
+    "name": "🎬 第6章：コマ送り実況とZDD — 4駅モデルで体験する超圧縮のメカニズム",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "第5章で、フロンティア法の驚くべき基本思想（ベルトコンベアによる一列スキャンと、駅カルテによる安全チェック）を学びました。",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "第5章で、フロンティア法の驚くべき基本思想（ベルトコンベアによる一列スキャンと、駅カルテによる安全チェック）を学びました。"
+      },
+      {
+        "beat": "act",
+        "heading_index": 57
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🎬 第6章：コマ送り実況とZDD — 4駅モデルで体験する超圧縮のメカニズム」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_89"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🎬 第6章：コマ送り実況とZDD — 4駅モデルで体験する超圧縮のメカニズム」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_89",
+    "heading_index": 89,
+    "name": "🏆 第7章：DAG上の動的計画法による厳密最長解の特定",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "フロンティア法によって生成されたZDDは、数学的には DAG（Directed Acyclic Graph / 有向非巡回グラフ：ダグ） の構造を持ちます。 DAGとは、 「内部に循環ループを持たず、過去から未来へと一方向にのみ流れる層状の…",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "フロンティア法によって生成されたZDDは、数学的には DAG（Directed Acyclic Graph / 有向非巡回グラフ：ダグ） の構造を持ちます。 DAGとは、 「内部に循環ループを持たず、過去から未来へと一方向にのみ流れる層状の…"
+      },
+      {
+        "beat": "act",
+        "heading_index": 89
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🏆 第7章：DAG上の動的計画法による厳密最長解の特定」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_92"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🏆 第7章：DAG上の動的計画法による厳密最長解の特定」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_92",
+    "heading_index": 92,
+    "name": "🚀 第8章：現代社会と最先端サイエンスを支える応用領域",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "身近な電車の路線図から出発した私たちの探究は、現代の情報社会や最先端科学の屋台骨を支える重要な技術領域へと直結しています。 現代のAI技術の中核を成すディープニューラルネットワークにおいて、標準的に用いられる活性化関数が 「ReLU（Rec…",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "身近な電車の路線図から出発した私たちの探究は、現代の情報社会や最先端科学の屋台骨を支える重要な技術領域へと直結しています。 現代のAI技術の中核を成すディープニューラルネットワークにおいて、標準的に用いられる活性化関数が 「ReLU（Rec…"
+      },
+      {
+        "beat": "act",
+        "heading_index": 92
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🚀 第8章：現代社会と最先端サイエンスを支える応用領域」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: KC_tropical-math_112"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🚀 第8章：現代社会と最先端サイエンスを支える応用領域」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  },
+  {
+    "node_id": "KC_tropical-math_112",
+    "heading_index": 112,
+    "name": "🏁 おわりに：シミュレーターで「数理の手触り」を体感する",
+    "type": "concept",
+    "depth_start": 0,
+    "goal": "本書を通じて、電車の路線図という身近な題材の背後に広がる壮大な数学的景観をご覧いただきました。",
+    "spine": [
+      {
+        "beat": "hook",
+        "text": "本書を通じて、電車の路線図という身近な題材の背後に広がる壮大な数学的景観をご覧いただきました。"
+      },
+      {
+        "beat": "act",
+        "heading_index": 112
+      },
+      {
+        "beat": "check_light",
+        "text": "この節の要点を、ひとことで言うと？"
+      },
+      {
+        "beat": "check_deep",
+        "text": "「🏁 おわりに：シミュレーターで「数理の手触り」を体感する」が成り立つ理由（因果）は？"
+      },
+      {
+        "beat": "on_fail",
+        "text": "浅化: 具体例で1段下げる（shallow_example 未記入）"
+      },
+      {
+        "beat": "on_pass",
+        "text": "次へ: END"
+      }
+    ],
+    "question_bank": [
+      {
+        "id": "Q1",
+        "text": "「🏁 おわりに：シミュレーターで「数理の手触り」を体感する」を、日常や身近な例で言うと？",
+        "intent": "draw_intuition"
+      },
+      {
+        "id": "Q2",
+        "text": "これは前の節と、どうつながっている？",
+        "intent": "link"
+      },
+      {
+        "id": "Q3",
+        "text": "ここで一番「意外」だったのは？",
+        "intent": "surprise"
+      }
+    ],
+    "fallbacks": {
+      "fragile": false,
+      "shallow_example": ""
+    }
+  }
+]
