@@ -12,6 +12,9 @@ tutor_state.json
 .trash/
 *.bak_*
 
+# スパイク（使い捨ての検証スクリプト・結果。正本にしない）
+_spike/
+
 # Docling（任意・PDF取り込み）— 実体は Drive 外のローカル、ここにはパス記録のみ
 docling.path
 .docling/
