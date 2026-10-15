@@ -1,6 +1,6 @@
 # Moli-Tutor（Phase 1: Aether型コックピット）
 
-Ellie 起案・our-room **#27**。教材は Moli でテキスト抽出、表示は **pywebview（WebView2）** の左右2分割。会話は Cursor / Antigravity 側。本ツールは **外部キャンバス + 状態ファイル** のみ。
+Ellie 起案・our-room **#27**。教材は Moli でテキスト抽出、表示は **pywebview（WebView2）** の左右2分割。会話は Cursor / Antigravity 側。本ツールは **外部キャンバス + 状態ファイル** のみ。**サーバー無し**（HTTP 待受・ポートなし。教材は `file://` + iframe `srcdoc`）。
 
 ## 要件
 
@@ -14,7 +14,7 @@ Ellie 起案・our-room **#27**。教材は Moli でテキスト抽出、表示�
 start_cockpit.bat
 ```
 
-既定で **ポート 8777** に shell とトロピカル数学（`/material/index.html`）を同一オリジン配信します。  
+**サーバー無し**で動きます（**待受ポート・HTTP サーバーはありません**）。教材 HTML は Python が読み、`js_api` 経由で shell の iframe（`srcdoc`）へ渡します。表示する教材は `tutor_state.json` の `material_id` で決まります（既定 `tropical-math`）。  
 AI Tutor 拡張と同型の `action_request` / `latest_message` に対応（詳細 `docs/AI_TUTOR_PORT.md`）。
 
 （黒い **コマンドプロンプト** は起動用です。旧版ではここを閉じるとアプリも終了していました。**現行 bat は `pythonw` + `start` で GUI だけ残します。** コンソールも出したくない場合は `start_cockpit.vbs` を使う。）
@@ -31,13 +31,13 @@ python -X utf8 tutor_cockpit.py --state tutor_state.json
 
 ```json
 {
-  "url": "https://example.com/ または file:///G:/path/to/textbook.html",
+  "material_id": "tropical-math",
   "svg": "<svg>...</svg>",
   "math": "E = mc^2"
 }
 ```
 
-- **左**: `url`（HTTP(S) または `file:`）
+- **左**: `material_id` の教材（`materials/<id>/index.html` 等。`MATERIAL_ROOTS`＝`materials/`・`demo-material/`・`Projects/Teaching-materials/` を順に探索）
 - **右**: `svg`（インライン SVG）、`math`（KaTeX 用 LaTeX 本体。`$` / `$$` は付けない）
 
 ### AI 操作（`action_request` — id は毎回 +1）
@@ -184,15 +184,15 @@ python -X utf8 tutor_cli.py act --heading-index 26
 python -X utf8 tutor_cli.py act --clear-highlight
 python -X utf8 tutor_cli.py act --focus-board semiring --no-dim
 python -X utf8 tutor_cli.py act --scroll-viewport --y-ratio 0.35
-python -X utf8 tutor_cli.py act --navigate-to "http://127.0.0.1:8777/material/index.html" --then-scroll-to "半環"
 python -X utf8 tutor_cli.py act --latest-message "では、ここを見てみましょう"
-python -X utf8 tutor_cli.py act --url "http://..." --board-visible true
+python -X utf8 tutor_cli.py act --board-visible true
 ```
 
 - `--state PATH` で対象を指定（既定 `tutor_state.json`）／ `--dry-run` で書き込まず確認
 - ハイライト解除は `--clear-highlight`（shell 側も `clear_highlight` に対応）
 - 「いま指している場所」は画面下の status に **🎯** で表示
 - `tutor_state.json` は BOM 付きでも読めます（`utf-8-sig`）
+- 教材の切り替えは **`open --material-id <id>`**（サーバー無しでは `material_id` が正。`--navigate-to` / `--url` はレガシー）
 
 ### ボードの開閉
 
@@ -216,20 +216,11 @@ python -X utf8 tutor_cli.py open --material-id article1 --pack packs
 - `open` は `tutor_state.json` の `url` と `material_id` を設定（`--pack` で DAG も）
 - 教材は `materials/`（git 除外）。`--materials DIR` で変更可
 
-> **外部URLの直接 iframe は操作できません**（cross-origin で bridge が入らない）。だから `add-material` で**同一オリジンに教材化**してから `open` します。
+> **外部URLは直接読み込めません**（サーバー無しのため、教材は `MATERIAL_ROOTS` のローカルファイルから `srcdoc` で渡す）。`add-material` で**ローカル教材化**してから `open` します。
 
-### 教材が出ないとき（404）
+### 教材が出ないとき
 
-左ペインが404のときは、**起動時の `--material-dir` と `tutor_state.json` の `url` が不一致**です。両者を同じ教材に合わせてください（左ペインにも案内が出ます）。
-
-### アクセスログ（デバッグ）
-
-環境変数 `MOLI_TUTOR_ACCESS_LOG=1` を付けて起動すると、HTTPリクエストを stderr に出力します。
-
-```bat
-set MOLI_TUTOR_ACCESS_LOG=1
-python -X utf8 tutor_cockpit.py --state tutor_state.json --material-dir "G:\...\tropical-math"
-```
+左ペインに教材が出ないときは、`tutor_state.json` の `material_id` に対応する教材が `MATERIAL_ROOTS`（`materials/`、`demo-material/`、`Projects/Teaching-materials/`）に見つかっていません。`add-material` / `open` で配置・設定してください（左ペインにも案内が出ます）。
 
 ### テスト
 
@@ -254,7 +245,7 @@ python -X utf8 tutor_cli.py fetch https://example.com --format markdown
 
 Agent は stdout の Markdown をそのまま読めます。
 
-**ローカル HTML:** Moli は `file:` URL を既定で拒否します。手元正本を使うときは教材ディレクトリで `python -m http.server 8765` を立て、`http://127.0.0.1:8765/index.html` を指定する（`tutor_state.json` も同じ URL）。
+**ローカル HTML:** Moli（テキスト抽出）は `file:` URL を既定で拒否します。`fetch` で手元正本を使うときは、そのディレクトリで `python -m http.server 8765` を立て、`http://127.0.0.1:8765/index.html` を `fetch` に渡します（コックピットの表示は `material_id` 由来で、この URL とは別）。
 
 ## 系譜
 
